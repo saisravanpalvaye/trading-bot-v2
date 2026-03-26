@@ -109,7 +109,11 @@ def _build_pick_block(p, rank, total):
 def build_alert_message(payload, is_reminder=False):
     """Build the full Telegram message from signals.json payload."""
     now      = datetime.now(IST)
-    date_str = now.strftime("%a %d %b %Y · %I:%M %p IST").upper()
+    # Brain scans at 8 PM for TOMORROW's market — show tomorrow's date
+    tomorrow = now + timedelta(days=1)
+    date_str = (tomorrow.strftime("%a %d %b %Y").upper() +
+                " · " + now.strftime("%I:%M %p IST").upper() +
+                "  (for tomorrow\'s open)")
     regime   = payload.get("regime", "UNKNOWN")
     rdesc    = payload.get("regime_desc", "")
     rsi      = payload.get("nifty_rsi")
