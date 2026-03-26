@@ -45,7 +45,7 @@ def run(force=False):
         # After midnight but before 6 AM — today is the market day
         # Check if today itself is a market day
         from config import NSE_HOLIDAYS_2026
-        today_date = date.today()
+        today_date = now.date()  # use IST date not UTC date.today()
         if today_date.weekday() < 5 and today_date.isoformat() not in NSE_HOLIDAYS_2026:
             trade_date = today_date.isoformat()
         else:

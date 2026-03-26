@@ -150,3 +150,7 @@
   (23/49 stocks were showing as duplicates — half the watchlist was wrong data)
 - config.py: TATAMOTORS.NS removed — delisted from Yahoo Finance
 - alert.py: confirmed reads trade_date from signals.json not recalculating
+- brain.py: date.today() returns UTC on GitHub runners — fixed to now.date() (IST)
+  Root cause: 01:26 AM IST = 7:56 PM UTC March 26 (holiday) → jumped to March 30
+  Fix: use now.date() which uses the IST timezone we already set on `now`
+  Lesson: NEVER use date.today() or datetime.now() without explicit timezone on GitHub Actions
