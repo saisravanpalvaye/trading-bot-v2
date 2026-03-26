@@ -1,0 +1,131 @@
+name: Trading Bot v2
+
+on:
+  schedule:
+    # Brain + Alert — 8 PM IST = 14:30 UTC (Sun–Thu covers Mon–Fri IST)
+    - cron: "30 14 * * 0-4"
+    # Morning reminder — 8 AM IST = 2:30 UTC (Mon–Fri)
+    - cron: "30 2 * * 1-5"
+    # Scoreboard — 3:35 PM IST = 10:05 UTC (Mon–Fri)
+    - cron: "5 10 * * 1-5"
+
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which job to run manually"
+        required: false
+        default: "brain_alert"
+        type: choice
+        options:
+          - brain_alert
+          - reminder
+          - scoreboard
+          - all
+
+jobs:
+
+  # ── Brain + Alert (8 PM IST) ─────────────────────────────
+  brain-and-alert:
+    name: Brain + Alert
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '30 14 * * 0-4') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.job == 'brain_alert' || github.event.inputs.job == 'all'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install yfinance pandas numpy requests python-dotenv --upgrade
+
+      - name: Run brain (scan + write signals.json)
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python brain.py
+
+      - name: Run alert (send Telegram + log paper trades)
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python alert.py
+
+      - name: Save paper_trades.csv and signals.json to repo
+        if: always()
+        run: |
+          git config user.name  "Trading Bot"
+          git config user.email "bot@github-actions"
+          git add -f paper_trades.csv signals.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "signals $(date +%Y-%m-%d)"
+          git push 2>/dev/null || true
+
+  # ── Morning reminder (8 AM IST) ──────────────────────────
+  morning-reminder:
+    name: Morning Reminder
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '30 2 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.job == 'reminder' || github.event.inputs.job == 'all'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests python-dotenv --upgrade
+
+      - name: Send reminder
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python alert.py --reminder
+
+  # ── Scoreboard (3:35 PM IST) ─────────────────────────────
+  scoreboard:
+    name: Scoreboard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '5 10 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.job == 'scoreboard' || github.event.inputs.job == 'all'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install yfinance pandas requests python-dotenv --upgrade
+
+      - name: Run scoreboard
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scoreboard.py
+
+      - name: Save updated paper_trades.csv
+        if: always()
+        run: |
+          git config user.name  "Trading Bot"
+          git config user.email "bot@github-actions"
+          git add -f paper_trades.csv 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "scoreboard $(date +%Y-%m-%d)"
+          git push 2>/dev/null || true
