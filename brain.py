@@ -29,7 +29,16 @@ def is_market_day(force=False):
 
 def run(force=False):
     now   = datetime.now(IST)
-    today = now.strftime("%Y-%m-%d")
+    # Brain runs at 8 PM for TOMORROW's market open
+    # Trade date = next market day (skips weekends)
+    def next_market_day(dt):
+        from config import NSE_HOLIDAYS_2026
+        d = dt + timedelta(days=1)
+        while d.weekday() >= 5 or d.strftime("%Y-%m-%d") in NSE_HOLIDAYS_2026:
+            d += timedelta(days=1)
+        return d
+    today = now.strftime("%Y-%m-%d")          # when brain ran
+    trade_date = next_market_day(datetime.now(IST)).strftime("%Y-%m-%d")
 
     print(f"\n{'='*52}")
     print(f"  BRAIN  {now.strftime('%d %b %Y  %H:%M IST')}")
@@ -40,7 +49,7 @@ def run(force=False):
     if not market_open:
         print(f"  {reason} — writing no-market signal")
         payload = {
-            "date":         today,
+            "date":         trade_date,  # trade executes tomorrow
             "market_open":  False,
             "reason":       reason,
             "regime":       "CLOSED",
@@ -66,7 +75,7 @@ def run(force=False):
     except Exception as e:
         print(f"  FETCH FAILED: {e}")
         _write({
-            "date": today, "market_open": True,
+            "date": trade_date, "market_open": True,
             "regime": "UNKNOWN", "regime_desc": "Fetch failed",
             "nifty_rsi": None, "vix_val": None, "vix_action": "normal",
             "picks": [], "error": str(e),
@@ -83,7 +92,7 @@ def run(force=False):
     except Exception as e:
         print(f"  SCREENER FAILED: {e}")
         _write({
-            "date": today, "market_open": True,
+            "date": trade_date, "market_open": True,
             "regime": "UNKNOWN", "regime_desc": "Screener failed",
             "nifty_rsi": nifty_rsi, "vix_val": vix_val,
             "vix_action": vix_action, "picks": [], "error": str(e),
@@ -93,7 +102,7 @@ def run(force=False):
     # ── Write signals.json ────────────────────────────────
     print("\n[3/3] Writing signals.json...")
     payload = {
-        "date":         today,
+        "date":         trade_date,  # trade executes tomorrow
         "generated_at": now.strftime("%H:%M IST"),
         "market_open":  True,
         "regime":       regime,

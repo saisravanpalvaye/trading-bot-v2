@@ -98,6 +98,16 @@
 - STRONG BUY sizing kept at Rs 90K for now — scoring formula needs live validation
 - Full automation (Upstox API execution) is phase 3 — not phase 1 or 2
 
+## LLM INTEGRATION PLAN (phase 2 — do not build until 30 live trades complete)
+- Goal: news sentiment as VETO layer only — never creates signals, only blocks them
+- How it works: analyzer finds 3 signals → LLM reads today's news for those 3 stocks → if negative news found, signal downgraded from BUY to WATCH
+- Only call LLM on stocks that passed technical filter (3-5 calls/night, not 50)
+- Cost: ~Rs 15-25/night using Claude API — negligible vs trading income
+- News source: NSE announcements + Economic Times / Moneycontrol headlines
+- New file: llm_context.py — sits between analyzer.py and alert.py
+- What to measure: does win rate improve on signals the LLM did NOT veto vs baseline?
+- DO NOT BUILD until 30 paper trades give us a baseline to compare against
+
 ## PHASE ROADMAP
 - Phase 1 (now — 30 days): Paper trading, fully automatic, Sravan only reads alerts
 - Phase 2 (after 30 trades): Review live results, add intraday signals, discuss full automation
@@ -115,3 +125,19 @@
 2. Claude reads this file first
 3. One problem per session
 4. Upload files if code is involved
+
+## BUGS FIXED (2026-03-26 session)
+- brain.py: was checking TODAY is market day — fixed to check TOMORROW
+  (brain runs at 8 PM to prepare for next morning, so tomorrow is what matters)
+- alert.py: was showing today's date in header — fixed to show tomorrow's date
+  Format: "FRI 27 MAR 2026 · 11:52 PM IST  (for tomorrow's open)"
+- Lesson: always run scenario tests before saying "working correctly"
+  Scenarios to always test: holiday evening, Friday evening, Sunday evening, consecutive holidays
+
+## HOW WE CAUGHT BUGS THIS SESSION
+- Sravan spotted the date issue by thinking about intent, not code
+- Rule going forward: Claude runs scenario tests and shows pass/fail output
+  before declaring any file correct. No more "working perfectly" without proof.
+- brain.py: trade_date was writing today's date — fixed to write next market day
+  (skips weekends AND holidays, so Friday evening correctly writes Monday's date)
+  Tested: Thu holiday→Fri27, Fri→Mon30, Sun→Mon30, Thu before long weekend→Mon+
