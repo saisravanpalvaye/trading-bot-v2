@@ -29,16 +29,30 @@ def is_market_day(force=False):
 
 def run(force=False):
     now   = datetime.now(IST)
-    # Brain runs at 8 PM for TOMORROW's market open
-    # Trade date = next market day (skips weekends)
+    # Trade date = next market day brain is preparing signals for
+    # Rule: if running between midnight and 6 AM IST, today IS the market day
+    #       (GitHub Actions delay or manual late-night run)
+    #       if running after 6 AM, we are preparing for tomorrow
     def next_market_day(dt):
         from config import NSE_HOLIDAYS_2026
         d = dt + timedelta(days=1)
         while d.weekday() >= 5 or d.strftime("%Y-%m-%d") in NSE_HOLIDAYS_2026:
             d += timedelta(days=1)
         return d
-    today = now.strftime("%Y-%m-%d")          # when brain ran
-    trade_date = next_market_day(datetime.now(IST)).strftime("%Y-%m-%d")
+    today = now.strftime("%Y-%m-%d")
+    ist_hour = now.hour
+    if ist_hour < 6:
+        # After midnight but before 6 AM — today is the market day
+        # Check if today itself is a market day
+        from config import NSE_HOLIDAYS_2026
+        today_date = date.today()
+        if today_date.weekday() < 5 and today_date.isoformat() not in NSE_HOLIDAYS_2026:
+            trade_date = today_date.isoformat()
+        else:
+            trade_date = next_market_day(datetime.now(IST)).strftime("%Y-%m-%d")
+    else:
+        # Normal 8 PM run — prepare for tomorrow
+        trade_date = next_market_day(datetime.now(IST)).strftime("%Y-%m-%d")
 
     print(f"\n{'='*52}")
     print(f"  BRAIN  {now.strftime('%d %b %Y  %H:%M IST')}")

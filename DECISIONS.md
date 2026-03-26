@@ -141,3 +141,6 @@
 - brain.py: trade_date was writing today's date — fixed to write next market day
   (skips weekends AND holidays, so Friday evening correctly writes Monday's date)
   Tested: Thu holiday→Fri27, Fri→Mon30, Sun→Mon30, Thu before long weekend→Mon+
+- brain.py: added midnight rule — if running between 12 AM and 6 AM IST,
+  treat today as trade date (handles GitHub Actions delays + manual test runs)
+  Tested 8 scenarios all pass including Fri 12:08 AM → shows Fri 27 correctly
