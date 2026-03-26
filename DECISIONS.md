@@ -71,6 +71,45 @@
 - paper_trades.csv (auto-generated, tracked in git)
 - signals.json (auto-generated, tracked in git)
 
+## BACKTEST RESULTS (run 2026-03-25)
+- 3,434 trades · 52.1% WR · Rs +7.46L total · Rs 6,090/month avg
+- Max drawdown 4.2% — system is safe
+- Best setup: RSI_DIVERGENCE 61% WR (only 90 trades/10yr — fires rarely)
+- Best months: Aug, Nov, May, Jun (57-59% WR)
+- Worst months: Feb (41% WR), Dec (47% WR)
+- 2025 was a losing year (-Rs 3K/month avg) — market selloff, not system failure
+
+## HONEST INCOME EXPECTATIONS
+- Rs 6,090/month average on Rs 6L capital
+- 62% of months are positive, 38% negative
+- Worst single month: -Rs 56,284 (rare, happened once)
+- Rs 30K/month requires Rs 25-30L capital — NOT a strategy tweak
+- Path to Rs 30K: add Rs 20K/month from salary to capital pool
+  - Year 1: Rs 9.4L capital → Rs 9,400/month
+  - Year 2: Rs 14.2L capital → Rs 14,200/month
+  - Year 3: Rs 20.2L capital → Rs 20,000/month
+
+## DECISIONS MADE (do not revisit without new data)
+- Swing only for phase 1 — no intraday until paper trading proves system
+- No stock blacklisting based on backtest — that's data snooping
+- No seasonal gates (Feb/Dec) — that's curve fitting
+- No equity holding — these are swing entry signals, not buy-and-hold signals
+- Focused 15 stocks NOT implemented — higher quality but LESS income (Rs 3,891 vs Rs 6,090)
+- STRONG BUY sizing kept at Rs 90K for now — scoring formula needs live validation
+- Full automation (Upstox API execution) is phase 3 — not phase 1 or 2
+
+## PHASE ROADMAP
+- Phase 1 (now — 30 days): Paper trading, fully automatic, Sravan only reads alerts
+- Phase 2 (after 30 trades): Review live results, add intraday signals, discuss full automation
+- Phase 3 (after intraday proven): Upstox API integration, full execution automation
+- Phase 4: Scale capital to Rs 20-30L for Rs 30K/month target
+
+## PAPER TRADING STARTED
+- Date: 2026-03-27 (first market day after setup)
+- After 30 days: upload paper_trades.csv and scoreboard numbers
+- Key question to answer: is live win rate close to 52%?
+- If yes → go live. If no → investigate why before risking real money.
+
 ## HOW TO START EVERY SESSION
 1. Say "continue from previous chat"
 2. Claude reads this file first
