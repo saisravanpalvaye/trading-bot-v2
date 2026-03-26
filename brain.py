@@ -13,15 +13,18 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def is_market_day(force=False):
-    """Return (bool, reason). Checks weekends and NSE holidays."""
-    today = date.today()
+    """
+    Brain runs at 8 PM IST to prepare signals for TOMORROW's market open.
+    So we check if TOMORROW is a market day, not today.
+    """
     if force:
         return True, "Forced run"
-    if today.weekday() >= 5:
-        return False, "Weekend"
-    if today.isoformat() in NSE_HOLIDAYS_2026:
-        return False, f"NSE Holiday ({today.isoformat()})"
-    return True, "Market day"
+    tomorrow = date.today() + timedelta(days=1)
+    if tomorrow.weekday() >= 5:
+        return False, f"Tomorrow is weekend — no signals needed"
+    if tomorrow.isoformat() in NSE_HOLIDAYS_2026:
+        return False, f"Tomorrow is NSE Holiday ({tomorrow.isoformat()})"
+    return True, f"Scanning for tomorrow {tomorrow.isoformat()}"
 
 
 def run(force=False):
