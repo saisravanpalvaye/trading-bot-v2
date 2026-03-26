@@ -12,8 +12,8 @@ from config import WATCHLIST
 FETCH_PERIOD   = "200d"   # enough for EMA200 + weekly RSI
 FETCH_INTERVAL = "1d"
 MIN_ROWS       = 60
-BATCH_SIZE     = 8
-BATCH_DELAY    = 1.2
+BATCH_SIZE     = 4
+BATCH_DELAY    = 2.0
 
 
 def _parse(raw, ticker):

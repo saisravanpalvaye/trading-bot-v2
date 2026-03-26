@@ -144,3 +144,9 @@
 - brain.py: added midnight rule — if running between 12 AM and 6 AM IST,
   treat today as trade date (handles GitHub Actions delays + manual test runs)
   Tested 8 scenarios all pass including Fri 12:08 AM → shows Fri 27 correctly
+
+## BUGS FIXED (2026-03-27 session)
+- fetcher.py: batch size reduced 8→4, delay 1.2→2.0 to fix yfinance duplicates
+  (23/49 stocks were showing as duplicates — half the watchlist was wrong data)
+- config.py: TATAMOTORS.NS removed — delisted from Yahoo Finance
+- alert.py: confirmed reads trade_date from signals.json not recalculating

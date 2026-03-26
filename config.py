@@ -97,8 +97,7 @@ WATCHLIST = [
     "APOLLOHOSP.NS", "MAXHEALTH.NS",
     # Auto
     "MARUTI.NS", "EICHERMOT.NS", "HEROMOTOCO.NS",
-    "BAJAJ-AUTO.NS", "M&M.NS", "TATAMOTORS.NS",
-    # FMCG
+    "BAJAJ-AUTO.NS", "M&M.NS",     # FMCG
     "HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS",
     "BRITANNIA.NS", "DABUR.NS",
     # Capital Goods / Infra
@@ -127,7 +126,7 @@ SECTOR_MAP = {
     "MAXHEALTH.NS":"HOSPITAL",
     "MARUTI.NS":   "AUTO",  "EICHERMOT.NS": "AUTO",
     "HEROMOTOCO.NS":"AUTO",  "BAJAJ-AUTO.NS":"AUTO",
-    "M&M.NS":      "AUTO",  "TATAMOTORS.NS":"AUTO",
+    "M&M.NS":      "AUTO",
     "HINDUNILVR.NS":"FMCG", "ITC.NS":       "FMCG",
     "NESTLEIND.NS": "FMCG", "BRITANNIA.NS": "FMCG",
     "DABUR.NS":     "FMCG",

@@ -109,9 +109,20 @@ def _build_pick_block(p, rank, total):
 def build_alert_message(payload, is_reminder=False):
     """Build the full Telegram message from signals.json payload."""
     now      = datetime.now(IST)
-    # Brain scans at 8 PM for TOMORROW's market — show tomorrow's date
-    tomorrow = now + timedelta(days=1)
-    date_str = (tomorrow.strftime("%a %d %b %Y").upper() +
+    # Use trade_date from signals.json — brain already calculated the correct
+    # next market day when it ran. This avoids midnight rollover issues where
+    # alert.py runs just after midnight and date.today() is already next day.
+    signal_trade_date = payload.get("date", "")
+    if signal_trade_date:
+        try:
+            from datetime import date as _date
+            td = datetime.strptime(signal_trade_date, "%Y-%m-%d")
+            mkt_label = td.strftime("%a %d %b %Y").upper()
+        except Exception:
+            mkt_label = signal_trade_date
+    else:
+        mkt_label = "NEXT MARKET DAY"
+    date_str = (mkt_label +
                 " · " + now.strftime("%I:%M %p IST").upper() +
                 "  (for tomorrow\'s open)")
     regime   = payload.get("regime", "UNKNOWN")
