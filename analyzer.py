@@ -222,25 +222,25 @@ def _quality_and_size(df, setup_type, regime, vix_action):
     ltp = float(cl.iloc[-1])
     av  = float(_atr(df).iloc[-1])
     if np.isnan(av) or av <= 0:
-        return False, *([0] * 6)
+        return False, *([0] * 5)
 
     rsi = _rsi(cl)
     rv  = float(rsi.iloc[-1])
     if rv > 68:
-        return False, *([0] * 6)   # overbought
+        return False, *([0] * 5)   # overbought
 
     # EMA200 quality check
     if len(cl) >= 200:
         ema200 = float(_ema(cl, 200).iloc[-1])
         if ltp < ema200 * 0.95:
-            return False, *([0] * 6)   # deep below trend
+            return False, *([0] * 5)   # deep below trend
 
     entry = ltp
     sl    = round(entry - ATR_SL_MULT * av, 2)
     tgt   = round(entry + ATR_TGT_MULT * av, 2)
     rr    = round((tgt - entry) / (entry - sl), 2) if entry > sl else 0
     if rr < MIN_RR:
-        return False, *([0] * 6)
+        return False, *([0] * 5)
 
     return True, entry, sl, tgt, rr, av
 

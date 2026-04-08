@@ -154,3 +154,11 @@
   Root cause: 01:26 AM IST = 7:56 PM UTC March 26 (holiday) → jumped to March 30
   Fix: use now.date() which uses the IST timezone we already set on `now`
   Lesson: NEVER use date.today() or datetime.now() without explicit timezone on GitHub Actions
+
+## BUGS FIXED (2026-04-09 session)
+- analyzer.py: `too many values to unpack (expected 6)` crash
+  Root cause: `_quality_and_size()` failure path returned `False + 6 zeros = 7 values`
+  but caller unpacked only 6. Fixed: `*([0] * 6)` → `*([0] * 5)` (False + 5 = 6 total)
+  4 occurrences fixed.
+- First day VIX dropped below 20 (19.7) — bot would have fired signals but crashed instead
+  Nifty RSI 53.5, regime NEUTRAL — good conditions for signals tomorrow
