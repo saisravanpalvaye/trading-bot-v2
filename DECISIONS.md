@@ -160,5 +160,12 @@
   Root cause: `_quality_and_size()` failure path returned `False + 6 zeros = 7 values`
   but caller unpacked only 6. Fixed: `*([0] * 6)` → `*([0] * 5)` (False + 5 = 6 total)
   4 occurrences fixed.
-- First day VIX dropped below 20 (19.7) — bot would have fired signals but crashed instead
-  Nifty RSI 53.5, regime NEUTRAL — good conditions for signals tomorrow
+- First day VIX dropped below 20 (19.7) — 8 signals fired successfully after fix.
+
+## FEATURE ADDED (2026-04-09 session)
+- scoreboard.py: Trailing Stop-Loss implemented
+  Phase 1 — Breakeven: price >= entry + 2% → SL moved to entry (no loss possible)
+  Phase 2 — Trail: price >= entry + 4% → SL trailed to today's low - 0.5% buffer
+  Scoreboard message now shows 🔒 tag on trades where SL has been trailed
+  Paper trades only — no impact on live bot or Upstox orders
+  DECISIONS: trailing SL is intentional and locked. Do not remove without backtest.

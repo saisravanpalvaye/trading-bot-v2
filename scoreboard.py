@@ -101,16 +101,49 @@ def _fetch_price(ticker):
 
 # ── Monitor open trades ────────────────────────────────────
 
+def _update_trailing_sl(t, price, entry):
+    """
+    Trailing SL logic — two phases:
+      Phase 1 — Breakeven: price >= entry + 2% → move SL to entry (no loss possible)
+      Phase 2 — Trail:     price >= entry + 4% → trail SL at 3-day low (lock in profit)
+    Updates t["sl"] in place. Returns True if SL was moved.
+    """
+    current_sl  = float(t["sl"])
+    close       = price["close"]
+    gain_pct    = (close - entry) / entry * 100
+
+    new_sl = current_sl  # default: no change
+
+    if gain_pct >= 4.0:
+        # Trail at today's low — protects at least some profit
+        trail_sl = round(price["low"] * 0.995, 2)  # 0.5% buffer below today's low
+        new_sl   = max(trail_sl, entry)             # never trail below breakeven
+    elif gain_pct >= 2.0:
+        # Move to breakeven — no loss possible
+        new_sl = round(entry + 0.01, 2)
+
+    if new_sl > current_sl:
+        t["sl"] = new_sl
+        phase = "TRAIL" if gain_pct >= 4.0 else "BREAKEVEN"
+        print(f"  ↑ TRAIL SL {t['ticker'].replace('.NS','')} "
+              f"{phase} +{gain_pct:.1f}%  "
+              f"SL {current_sl:.2f} → {new_sl:.2f}")
+        return True
+    return False
+
+
 def monitor_and_close():
     """
     Check all open paper trades.
     Close any that hit SL, target, or max hold days.
+    Also applies trailing SL to protect profits.
     Returns (closed_today, all_trades).
     """
     trades  = _load_trades()
     open_t  = [t for t in trades if t.get("status") == "open"]
     today   = date.today()
     closed_today = []
+    sl_updated   = False
 
     if not open_t:
         print("  No open paper trades.")
@@ -121,7 +154,6 @@ def monitor_and_close():
     for t in open_t:
         ticker  = t["ticker"]
         entry   = float(t["entry"])
-        sl      = float(t["sl"])
         target  = float(t["target"])
         qty     = int(float(t.get("qty", 0)))
         days    = _count_trading_days(t.get("date", ""), today)
@@ -130,6 +162,13 @@ def monitor_and_close():
         if price is None:
             print(f"  Could not fetch {ticker} — skipping")
             continue
+
+        # ── Step 1: Update trailing SL before checking exits ──
+        if _update_trailing_sl(t, price, entry):
+            sl_updated = True
+
+        # ── Step 2: Check exit conditions with updated SL ─────
+        sl = float(t["sl"])   # use updated SL
 
         exit_reason = None
         exit_price  = None
@@ -289,16 +328,23 @@ def build_scoreboard_message(closed_today, all_trades):
         for t in live_open:
             nm    = t.get("ticker", "").replace(".NS", "")
             entry = float(t.get("entry", 0))
+            sl    = float(t.get("sl", 0))
             ltp   = t.get("ltp")
             lpnl  = t.get("live_pnl")
             today_val = date.today()
             days  = _count_trading_days(t.get("date", ""), today_val)
+            # Detect if SL has been trailed (sl > entry = breakeven or better)
+            sl_tag = ""
+            if sl >= entry + 0.01:
+                sl_tag = "  🔒 SL trailed"
+            elif sl > float(t.get("entry", 0)) * 0.999:
+                sl_tag = "  🔒 Breakeven"
             if ltp and lpnl is not None:
                 icon = "↑" if lpnl >= 0 else "↓"
                 lines.append(
                     f"  {nm}  Day {days}  "
                     f"entry {entry:,.0f} → now {ltp:,.0f}  "
-                    f"{icon} Rs {lpnl:+,.0f}"
+                    f"{icon} Rs {lpnl:+,.0f}{sl_tag}"
                 )
             else:
                 lines.append(f"  {nm}  Day {days}  entry {entry:,.0f}  (price unavailable)")
