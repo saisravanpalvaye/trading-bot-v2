@@ -1,15 +1,7 @@
 id,date,ticker,setup_type,conf_label,conf_score,entry,sl,target,rr,qty,capital,hold_days,ev_pct,reason,status,exit_date,exit_price,exit_reason,pnl,result,days_held
-PT-001,2026-04-09,ABB.NS,TREND_PULLBACK,BUY,3,6565.0,6238.09,7109.85,1.67,4,26260.0,6,2.32,RSI 65 pulling back to EMA20 · ADX structural,open,,,,,,
 PT-001,2026-04-09,TATASTEEL.NS,TREND_PULLBACK,BUY,3,204.18,194.02,221.12,1.67,146,29810.0,6,2.32,RSI 58 pulling back to EMA20 · ADX structural,open,,,,,,
-PT-001,2026-04-09,LTIM.NS,OVERSOLD_EXHAUSTION,WATCH,2,4442.5,4172.87,4891.88,1.67,6,26655.0,6,2.35,RSI 50 turning up from oversold · volume drying,open,,,,,,
 PT-001,2026-04-09,TITAN.NS,TREND_PULLBACK,WATCH,2,4492.5,4270.02,4863.29,1.67,6,26955.0,6,2.31,RSI 67 pulling back to EMA20 · ADX structural,open,,,,,,
-PT-001,2026-04-09,HEROMOTOCO.NS,OVERSOLD_EXHAUSTION,WATCH,2,5287.5,4999.75,5767.09,1.67,5,26438.0,6,2.1,RSI 50 turning up from oversold · volume drying,open,,,,,,
 PT-001,2026-04-09,BRITANNIA.NS,OVERSOLD_EXHAUSTION,WATCH,2,5594.5,5367.4,5973.0,1.67,5,27972.0,6,1.57,RSI 44 turning up from oversold · volume drying,open,,,,,,
 PT-001,2026-04-09,BHARTIARTL.NS,OVERSOLD_EXHAUSTION,WATCH,2,1861.6,1788.07,1984.15,1.67,16,29786.0,6,1.53,RSI 52 turning up from oversold · volume drying,open,,,,,,
-PT-001,2026-04-09,EICHERMOT.NS,OVERSOLD_EXHAUSTION,WATCH,1,7131.0,6720.1,7815.83,1.67,4,28524.0,6,2.23,RSI 52 turning up from oversold · volume drying,open,,,,,,
-PT-002,2026-04-10,ABB.NS,TREND_PULLBACK,BUY,3,6614.0,6298.98,7139.04,1.67,4,26456.0,6,2.22,RSI 66 pulling back to EMA20 · ADX structural,open,,,,,,
-PT-002,2026-04-10,JSWSTEEL.NS,TREND_PULLBACK,BUY,3,205.2,195.57,221.25,1.67,146,29959.0,6,2.19,RSI 59 pulling back to EMA20 · ADX structural,open,,,,,,
 PT-002,2026-04-10,TATASTEEL.NS,TREND_PULLBACK,BUY,3,205.2,195.57,221.25,1.67,146,29959.0,6,2.19,RSI 59 pulling back to EMA20 · ADX structural,open,,,,,,
-PT-002,2026-04-10,DIVISLAB.NS,OVERSOLD_EXHAUSTION,WATCH,2,1211.9,1156.06,1304.96,1.67,24,29086.0,6,1.78,RSI 41 turning up from oversold · volume drying,open,,,,,,
-PT-002,2026-04-10,DRREDDY.NS,OVERSOLD_EXHAUSTION,WATCH,1,1717.1,1644.32,1838.41,1.67,17,29191.0,6,1.64,RSI 44 turning up from oversold · volume drying,open,,,,,,
-PT-002,2026-04-10,SUNPHARMA.NS,OVERSOLD_EXHAUSTION,WATCH,1,1717.1,1644.32,1838.41,1.67,17,29191.0,6,1.64,RSI 44 turning up from oversold · volume drying,open,,,,,,
+PT-002,2026-04-10,SUNPHARMA.NS,OVERSOLD_EXHAUSTION,WATCH,1,1717.1,1644.32,1838.41,1.67,17,29191.0,6,1.64,RSI 44 turning up from oversold · volume drying,closed,2026-04-10,1644.32,SL,-1237.26,LOSS,0

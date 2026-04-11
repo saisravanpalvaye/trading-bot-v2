@@ -169,3 +169,21 @@
   Scoreboard message now shows 🔒 tag on trades where SL has been trailed
   Paper trades only — no impact on live bot or Upstox orders
   DECISIONS: trailing SL is intentional and locked. Do not remove without backtest.
+
+## BUGS FIXED (2026-04-10 session — paper_trades analysis)
+- analyzer.py: Added 3 sanity checks in _quality_and_size() after SL calculation:
+  1. SL must be below entry (sl >= entry → skip — catches inverted ATR)
+  2. SL distance must be >= 0.3% of entry (catches phantom 1-paisa stops)
+  3. Target must be above entry (tgt <= entry → skip)
+  Root cause: yfinance occasionally returns duplicate/wrong data for a ticker.
+  ATR calculated on wrong stock history produces impossible SL values.
+  These 3 checks block all known bad-data patterns before they reach paper_trades.csv.
+
+- paper_trades.csv: Cleaned 8 buggy rows from first 2 days of signals:
+  Removed: ABB x2 (SL > entry), LTIM (1-paisa SL), HEROMOTOCO (1-paisa SL),
+           EICHERMOT (SL > entry), JSWSTEEL (SL = Rs 1,197 on Rs 205 stock),
+           DIVISLAB (SL = Rs 5,901 on Rs 1,211 stock), DRREDDY (SUNPHARMA data)
+  Kept: 6 clean trades — TATASTEEL x2, TITAN, BRITANNIA, BHARTIARTL, SUNPHARMA
+
+- LESSON: Always check SL vs entry sanity before logging paper trades.
+  The sanity check in analyzer.py now prevents this class of bug permanently.

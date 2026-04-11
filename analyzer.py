@@ -222,22 +222,37 @@ def _quality_and_size(df, setup_type, regime, vix_action):
     ltp = float(cl.iloc[-1])
     av  = float(_atr(df).iloc[-1])
     if np.isnan(av) or av <= 0:
-        return False, *([0] * 5)
+        return False, *([0] * 6)
 
     rsi = _rsi(cl)
     rv  = float(rsi.iloc[-1])
     if rv > 68:
-        return False, *([0] * 5)   # overbought
+        return False, *([0] * 6)   # overbought
 
     # EMA200 quality check
     if len(cl) >= 200:
         ema200 = float(_ema(cl, 200).iloc[-1])
         if ltp < ema200 * 0.95:
-            return False, *([0] * 5)   # deep below trend
+            return False, *([0] * 6)   # deep below trend
 
     entry = ltp
     sl    = round(entry - ATR_SL_MULT * av, 2)
     tgt   = round(entry + ATR_TGT_MULT * av, 2)
+
+    # ── Sanity checks — catch bad yfinance data ────────────
+    # SL must be below entry (long trades only)
+    if sl >= entry:
+        print(f"  [SANITY] SL {sl} >= entry {entry} — bad ATR data, skipping")
+        return False, *([0] * 5)
+    # SL distance must be at least 0.3% of entry (not a phantom stop)
+    if (entry - sl) / entry < 0.003:
+        print(f"  [SANITY] SL too close: {round((entry-sl)/entry*100,3)}% — skipping")
+        return False, *([0] * 5)
+    # Target must be above entry
+    if tgt <= entry:
+        print(f"  [SANITY] Target {tgt} <= entry {entry} — bad data, skipping")
+        return False, *([0] * 5)
+
     rr    = round((tgt - entry) / (entry - sl), 2) if entry > sl else 0
     if rr < MIN_RR:
         return False, *([0] * 5)
