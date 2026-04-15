@@ -1,5 +1,5 @@
 id,date,ticker,setup_type,conf_label,conf_score,entry,sl,target,rr,qty,capital,hold_days,ev_pct,reason,status,exit_date,exit_price,exit_reason,pnl,result,days_held
-PT-001,2026-04-09,TATASTEEL.NS,TREND_PULLBACK,BUY,3,204.18,194.02,221.12,1.67,146,29810.0,6,2.32,RSI 58 pulling back to EMA20 · ADX structural,open,,,,,,
+PT-001,2026-04-09,TATASTEEL.NS,TREND_PULLBACK,BUY,3,204.18,204.19,221.12,1.67,146,29810.0,6,2.32,RSI 58 pulling back to EMA20 · ADX structural,open,,,,,,
 PT-001,2026-04-09,TITAN.NS,TREND_PULLBACK,WATCH,2,4492.5,4270.02,4863.29,1.67,6,26955.0,6,2.31,RSI 67 pulling back to EMA20 · ADX structural,open,,,,,,
 PT-001,2026-04-09,BRITANNIA.NS,OVERSOLD_EXHAUSTION,WATCH,2,5594.5,5367.4,5973.0,1.67,5,27972.0,6,1.57,RSI 44 turning up from oversold · volume drying,open,,,,,,
 PT-001,2026-04-09,BHARTIARTL.NS,OVERSOLD_EXHAUSTION,WATCH,2,1861.6,1788.07,1984.15,1.67,16,29786.0,6,1.53,RSI 52 turning up from oversold · volume drying,open,,,,,,
