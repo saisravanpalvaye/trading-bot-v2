@@ -1,42 +1,44 @@
-name: Trading Bot v2
+name: Trading Bot V6 N200c
 
 on:
   schedule:
-    # Brain + Alert — 8 PM IST = 14:30 UTC (Sun–Thu covers Mon–Fri IST)
+    # brain + alert: 8:00 PM IST = 14:30 UTC (Sun-Thu)
     - cron: "30 14 * * 0-4"
-    # Morning reminder — 8 AM IST = 2:30 UTC (Mon–Fri)
+    # morning reminder: 8:00 AM IST = 02:30 UTC (Mon-Fri)
     - cron: "30 2 * * 1-5"
-    # Scoreboard — 3:35 PM IST = 10:05 UTC (Mon–Fri)
+    # scoreboard: 3:35 PM IST = 10:05 UTC (Mon-Fri)
     - cron: "5 10 * * 1-5"
-
   workflow_dispatch:
     inputs:
       job:
         description: "Which job to run manually"
-        required: false
-        default: "brain_alert"
+        required: true
+        default: "brain"
         type: choice
         options:
-          - brain_alert
-          - reminder
+          - brain
           - scoreboard
-          - all
+          - morning
+
+env:
+  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
 
-  # ── Brain + Alert (8 PM IST) ─────────────────────────────
-  brain-and-alert:
-    name: Brain + Alert
+  # ── Job 1: Brain + Alert — 8:00 PM IST ────────────────────────
+  brain:
+    name: Brain + Alert (8 PM IST)
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '30 14 * * 0-4') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.job == 'brain_alert' || github.event.inputs.job == 'all'))
+      github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'brain' ||
+      github.event_name == 'schedule' && github.event.schedule == '30 14 * * 0-4'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,68 +46,35 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install yfinance pandas numpy requests python-dotenv --upgrade
+        run: pip install -r requirements.txt
 
-      - name: Run brain (scan + write signals.json)
-        env:
-          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Run brain (fetch + screen + write signals.json)
         run: python brain.py
 
-      - name: Run alert (send Telegram + log paper trades)
-        env:
-          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Run alert (read signals.json + send Telegram + log paper trades)
         run: python alert.py
 
-      - name: Save paper_trades.csv and signals.json to repo
-        if: always()
+      - name: Commit signals.json and paper_trades.csv
         run: |
           git config user.name  "Trading Bot"
-          git config user.email "bot@github-actions"
-          git add -f paper_trades.csv signals.json 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "signals $(date +%Y-%m-%d)"
-          git push 2>/dev/null || true
+          git config user.email "bot@trading-bot-v2"
+          git add signals.json paper_trades.csv
+          git diff --cached --quiet || git commit -m "bot: signals $(date -u '+%Y-%m-%d %H:%M')"
+          git push
 
-  # ── Morning reminder (8 AM IST) ──────────────────────────
-  morning-reminder:
-    name: Morning Reminder
-    runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'schedule' && github.event.schedule == '30 2 * * 1-5') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.job == 'reminder' || github.event.inputs.job == 'all'))
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install requests python-dotenv --upgrade
-
-      - name: Send reminder
-        env:
-          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python alert.py --reminder
-
-  # ── Scoreboard (3:35 PM IST) ─────────────────────────────
+  # ── Job 2: Scoreboard — 3:35 PM IST ──────────────────────────
   scoreboard:
-    name: Scoreboard
+    name: Scoreboard (3:35 PM IST)
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '5 10 * * 1-5') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.job == 'scoreboard' || github.event.inputs.job == 'all'))
+      github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'scoreboard' ||
+      github.event_name == 'schedule' && github.event.schedule == '5 10 * * 1-5'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -113,19 +82,40 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install yfinance pandas requests python-dotenv --upgrade
+        run: pip install -r requirements.txt
 
-      - name: Run scoreboard
-        env:
-          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Run scoreboard (close trades + send Telegram + write trade_log)
         run: python scoreboard.py
 
-      - name: Save updated paper_trades.csv
-        if: always()
+      - name: Commit paper_trades.csv and trade_log.csv
         run: |
           git config user.name  "Trading Bot"
-          git config user.email "bot@github-actions"
-          git add -f paper_trades.csv 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "scoreboard $(date +%Y-%m-%d)"
-          git push 2>/dev/null || true
+          git config user.email "bot@trading-bot-v2"
+          git add paper_trades.csv trade_log.csv
+          git diff --cached --quiet || git commit -m "scoreboard: update $(date -u '+%Y-%m-%d %H:%M')"
+          git push
+
+  # ── Job 3: Morning reminder — 8:00 AM IST ─────────────────────
+  morning:
+    name: Morning Reminder (8 AM IST)
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'morning' ||
+      github.event_name == 'schedule' && github.event.schedule == '30 2 * * 1-5'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Send morning reminder (read-only — no commits)
+        run: python alert.py --reminder

@@ -1,8 +1,12 @@
 """
-alert.py — Reads signals.json. Sends Telegram alert.
-Auto-logs every signal as a paper trade. Never silent.
-If no signals: sends STAY IN CASH message.
-If error in signals.json: sends the error so you know something broke.
+alert.py — Reads signals.json. Sends Telegram alert. Logs paper trades.
+
+Fixed in V6 rebuild:
+  B6:  remains_free = CAPITAL - open_trades_capital - today_signals
+  B11: warning when deployment would exceed 60% of capital
+  B20: signals.json validated before processing (never crashes on bad JSON)
+  Schema: paper_trades.csv includes partial exit fields
+  Labels: BUY shown prominently, WATCH shown with lower emphasis
 """
 import json
 import csv
@@ -12,24 +16,28 @@ from datetime import datetime, timezone, timedelta
 from config import (
     TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
     SIGNALS_FILE, PAPER_TRADES_FILE, CAPITAL,
-    SIZE_STRONG_BUY, SIZE_BUY, SIZE_WATCH,
+    MAX_DEPLOYED,
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
+# ── paper_trades.csv schema ────────────────────────────────
+# Includes partial exit fields (B12 fix)
 PAPER_FIELDS = [
     "id", "date", "ticker", "setup_type", "conf_label", "conf_score",
-    "entry", "sl", "target", "rr", "qty", "capital",
-    "hold_days", "ev_pct", "reason",
-    "status",        # open / closed / expired
+    "entry", "sl", "target", "partial_tgt", "rr", "qty",
+    "qty_open", "qty_closed",           # partial exit tracking
+    "capital", "hold_days", "ev_pct", "reason", "sector",
+    "status",                            # open / partial / closed / expired
     "exit_date", "exit_price", "exit_reason",
+    "partial_exit_price", "partial_exit_date", "partial_pnl",
     "pnl", "result", "days_held",
 ]
 
 
 # ── Telegram helpers ───────────────────────────────────────
 
-def _send(text):
+def _send_telegram(text):
     import requests
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
@@ -48,6 +56,107 @@ def _send(text):
         return False
 
 
+# ── Signals validation ─────────────────────────────────────
+
+def read_signals(signals_file=None):
+    """
+    Read and validate signals.json.
+    B20 fix: validates schema before returning. Returns None on invalid/missing.
+    """
+    path = signals_file or SIGNALS_FILE
+    try:
+        with open(path) as f:
+            payload = json.load(f)
+    except FileNotFoundError:
+        return {
+            "date": "", "market_open": True, "regime": "UNKNOWN",
+            "regime_desc": "signals.json not found",
+            "nifty_rsi": None, "vix": None, "vix_action": "normal",
+            "floor_hit": False, "consec_losses": 0, "size_multiplier": 1.0,
+            "picks": [],
+            "error": "signals.json missing — check GitHub Actions logs",
+        }
+    except Exception as e:
+        return {
+            "date": "", "market_open": True, "regime": "UNKNOWN",
+            "regime_desc": "Could not read signals.json",
+            "nifty_rsi": None, "vix": None, "vix_action": "normal",
+            "floor_hit": False, "consec_losses": 0, "size_multiplier": 1.0,
+            "picks": [],
+            "error": str(e),
+        }
+    # Ensure required keys exist with safe defaults
+    payload.setdefault("picks", [])
+    payload.setdefault("floor_hit", False)
+    payload.setdefault("consec_losses", 0)
+    payload.setdefault("size_multiplier", 1.0)
+    payload.setdefault("vix_action", "normal")
+    payload.setdefault("error", None)
+    payload.setdefault("market_open", True)
+    return payload
+
+
+# ── Capital tracking ───────────────────────────────────────
+
+def _open_trades_capital(paper_trades_path=None):
+    """
+    Sum capital of all OPEN trades in paper_trades.csv.
+    B6 fix: alert must account for already-deployed capital.
+    Returns 0 if file missing (safe fallback).
+    """
+    path = paper_trades_path or PAPER_TRADES_FILE
+    if not os.path.exists(path):
+        return 0
+    try:
+        total = 0.0
+        with open(path, newline="") as f:
+            for row in csv.DictReader(f):
+                if row.get("status", "").lower() in ("open", "partial"):
+                    try:
+                        total += float(row.get("capital", 0) or 0)
+                    except ValueError:
+                        pass
+        return total
+    except Exception:
+        return 0
+
+
+def calc_remains_free(signals, paper_trades_path=None):
+    """
+    Calculate truly available capital.
+    B6 fix: remains_free = CAPITAL - open_trades_capital - today_signals_capital
+    """
+    open_capital  = _open_trades_capital(paper_trades_path)
+    today_capital = sum(
+        float(p.get("capital", 0))
+        for p in signals.get("picks", [])
+        if not p.get("already_open", False)
+    )
+    return round(CAPITAL - open_capital - today_capital, 0)
+
+
+# ── Paper trade ID ─────────────────────────────────────────
+
+def _next_paper_id(paper_trades_path=None):
+    path = paper_trades_path or PAPER_TRADES_FILE
+    if not os.path.exists(path):
+        return "PT-001"
+    try:
+        with open(path, newline="") as f:
+            rows = list(csv.DictReader(f))
+        if not rows:
+            return "PT-001"
+        ids = []
+        for r in rows:
+            try:
+                ids.append(int(r.get("id", "PT-000").replace("PT-", "")))
+            except ValueError:
+                pass
+        return f"PT-{max(ids) + 1:03d}" if ids else "PT-001"
+    except Exception:
+        return "PT-001"
+
+
 # ── Message builders ───────────────────────────────────────
 
 def _regime_icon(regime):
@@ -60,248 +169,273 @@ def _regime_icon(regime):
         "CLOSED":   "⭕",
     }.get(regime, "⚪")
 
-def _conf_tag(label):
-    return {
-        "STRONG BUY": "★ STRONG BUY",
-        "BUY":        "✦ BUY",
-        "WATCH":      "◎ WATCH",
-    }.get(label, label)
 
-def _build_pick_block(p, rank, total):
-    """Build one pick block for the alert message."""
-    entry  = float(p["entry"])
-    sl     = float(p["sl"])
-    tgt    = float(p["target"])
-    qty    = int(p["qty"])
-    cap    = float(p["capital"])
-    rr     = float(p["rr"])
-    pct_up = round((tgt - entry) / entry * 100, 1)
-    pct_dn = round((entry - sl)  / entry * 100, 1)
-    pnl_up = round((tgt - entry) * qty)
-    pnl_dn = round((entry - sl)  * qty)
-    label  = p["conf_label"]
-    score  = p["conf_score"]
+def format_pick(p):
+    """
+    Format a single pick for Telegram.
+    BUY shown prominently. WATCH shown with lower emphasis.
+    B17: note that entry is at close price, execution is at next-day open.
+    """
+    entry   = float(p["entry"])
+    sl      = float(p["sl"])
+    tgt     = float(p["target"])
+    partial = float(p.get("partial_tgt", 0))
+    qty     = int(p["qty"])
+    cap     = float(p["capital"])
+    rr      = float(p["rr"])
+    score   = int(p.get("conf_score", 0))
+    label   = p.get("conf_label", "WATCH")
 
-    lines = []
-    lines.append(f"{'─'*34}")
-    lines.append(f"{_conf_tag(label)}  #{rank} of {total}  [{score}/6]")
-    lines.append(f"")
-    lines.append(f"<b>{p['name']}</b>  [{p['sector']}]")
-    lines.append(f"{p['setup_display']}")
-    lines.append(f"")
-    lines.append(f"Entry   <b>Rs {entry:,.2f}</b>   at open")
-    lines.append(f"Target  Rs {tgt:,.2f}   +{pct_up}%  (+Rs {pnl_up:,})")
-    lines.append(f"SL      Rs {sl:,.2f}   -{pct_dn}%  (-Rs {pnl_dn:,})")
-    lines.append(f"")
+    pct_up  = round((tgt - entry) / entry * 100, 1)
+    pct_dn  = round((entry - sl)  / entry * 100, 1)
+    pnl_up  = round((tgt - entry) * qty)
+    pnl_dn  = round((entry - sl)  * qty)
 
-    size_note = "  ⚠️ 50% size — VIX elevated" if p.get("vix_reduced") else ""
+    # BUY vs WATCH visual differentiation
+    if label == "BUY":
+        header = f"✦ <b>BUY</b>  [{score}/7]"
+    else:
+        header = f"◎ WATCH  [{score}/7]"
+
+    lines = [
+        f"{'─'*32}",
+        header,
+        f"",
+        f"<b>{p.get('name', p.get('ticker',''))}</b>  [{p.get('sector','')}]",
+        f"{p.get('setup_display', p.get('setup_type',''))}",
+        f"",
+        f"Entry   ≈ Rs {entry:,.2f}  <i>(at tomorrow's open)</i>",
+        f"Partial   Rs {partial:,.2f}  (exit 50% here → SL → entry)",
+        f"Target  Rs {tgt:,.2f}   +{pct_up}%  (+Rs {pnl_up:,})",
+        f"SL      Rs {sl:,.2f}   -{pct_dn}%  (-Rs {pnl_dn:,})",
+        f"",
+    ]
+
+    size_note = "  ⚠ 50% size — VIX elevated" if p.get("vix_reduced") else ""
     lines.append(f"Size    Rs {cap:,.0f}  ({qty} shares){size_note}")
-    lines.append(f"Hold    up to {p['hold_days']} trading days")
+    lines.append(f"Hold    up to {p.get('hold_days', 8)} trading days")
+    lines.append(f"RR      {rr:.2f}x")
     lines.append(f"")
-    lines.append(f"<i>{p['reason']}</i>")
+    lines.append(f"<i>{p.get('reason','')}</i>")
 
-    if p.get("gap_down"):
-        lines.append(f"⚠️  Gap down expected — confirm at 9:30 AM first")
+    if p.get("already_open"):
+        lines.append(f"ℹ️  Already in paper trades — not re-logged")
 
     return "\n".join(lines)
 
 
-def build_alert_message(payload, is_reminder=False):
-    """Build the full Telegram message from signals.json payload."""
+def build_alert_message(signals, paper_trades_path=None):
+    """
+    Build the full Telegram alert message.
+    B6: correct remains_free calculation
+    B11: deployment limit warning
+    B19: VIX reduce prominently shown
+    B20: handles missing/corrupt signals gracefully
+    """
     now      = datetime.now(IST)
-    # Use trade_date from signals.json — brain already calculated the correct
-    # next market day when it ran. This avoids midnight rollover issues where
-    # alert.py runs just after midnight and date.today() is already next day.
-    signal_trade_date = payload.get("date", "")
-    if signal_trade_date:
-        try:
-            from datetime import date as _date
-            td = datetime.strptime(signal_trade_date, "%Y-%m-%d")
-            mkt_label = td.strftime("%a %d %b %Y").upper()
-        except Exception:
-            mkt_label = signal_trade_date
-    else:
-        mkt_label = "NEXT MARKET DAY"
-    date_str = (mkt_label +
-                " · " + now.strftime("%I:%M %p IST").upper() +
-                "  (for tomorrow\'s open)")
-    regime   = payload.get("regime", "UNKNOWN")
-    rdesc    = payload.get("regime_desc", "")
-    rsi      = payload.get("nifty_rsi")
-    vix      = payload.get("vix_val")
-    picks    = payload.get("picks", [])
-    error    = payload.get("error")
+    picks    = signals.get("picks", [])
+    regime   = signals.get("regime", "UNKNOWN")
+    nifty_rsi= signals.get("nifty_rsi")
+    vix_val  = signals.get("vix")
+    vix_action = signals.get("vix_action", "normal")
+    floor_hit = signals.get("floor_hit", False)
+    consec   = signals.get("consec_losses", 0)
+    size_mult= signals.get("size_multiplier", 1.0)
+    error    = signals.get("error")
 
-    lines = []
+    trade_date = signals.get("date", "")
+    try:
+        from datetime import datetime as _dt
+        td = _dt.strptime(trade_date, "%Y-%m-%d")
+        mkt_label = td.strftime("%a %d %b %Y").upper()
+    except Exception:
+        mkt_label = trade_date or "NEXT MARKET DAY"
 
-    # Header
-    if is_reminder:
-        lines.append("⏰ <b>REMINDER — market opens in 75 minutes</b>")
-        lines.append("Signals from last night. Still valid unless major news.")
-        lines.append("")
+    date_str = (mkt_label + " · " +
+                now.strftime("%I:%M %p IST").upper() +
+                "  (for tomorrow's open)")
 
-    lines.append(f"<b>TRADING SIGNALS</b>")
-    lines.append(f"<i>{date_str}</i>")
+    lines = [
+        "<b>TRADING SIGNALS</b>",
+        f"<i>{date_str}</i>",
+    ]
 
     # Regime bar
     icon  = _regime_icon(regime)
-    rsi_s = f"Nifty RSI {rsi}" if rsi else "RSI --"
-    vix_s = f"VIX {vix}"       if vix else "VIX --"
+    rsi_s = f"Nifty RSI {nifty_rsi}" if nifty_rsi else "RSI --"
+    vix_s = f"VIX {vix_val}"         if vix_val   else "VIX --"
     lines.append(f"{icon} {regime}  ·  {rsi_s}  ·  {vix_s}")
-    lines.append(f"<i>{rdesc}</i>")
+    lines.append(f"<i>{signals.get('regime_desc', '')}</i>")
 
-    # Error state
+    # Error
     if error:
-        lines.append(f"")
-        lines.append(f"❌ Bot encountered an error:")
-        lines.append(f"<code>{error[:200]}</code>")
-        lines.append(f"Check GitHub Actions logs.")
+        lines += ["", "❌ Bot error:", f"<code>{str(error)[:200]}</code>",
+                  "Check GitHub Actions logs."]
         return "\n".join(lines)
 
     # No market day
-    if not payload.get("market_open", True):
-        lines.append(f"")
-        lines.append(f"Market closed today — no signals.")
+    if not signals.get("market_open", True):
+        lines += ["", "Market closed today — no signals."]
         return "\n".join(lines)
 
-    # Capital summary
-    total_deployable = round(CAPITAL * 0.60)
-    lines.append(f"{'─'*34}")
-    rsi_str = f"{rsi}" if rsi else "--"
-    lines.append(f"Scanning complete  ·  {len(picks)} signal(s) found")
-    lines.append(f"Max deployable: Rs {total_deployable:,}")
+    # Floor hit
+    if floor_hit:
+        lines += [
+            "", f"{'─'*32}",
+            "⛔ <b>MONTHLY LOSS FLOOR HIT</b>",
+            f"Loss this month exceeded Rs {30000:,}.",
+            "No new signals until next month.",
+            f"{'─'*32}",
+            "<i>Paper trading · Not SEBI advice</i>",
+        ]
+        return "\n".join(lines)
+
+    # Consecutive loss warning
+    if consec >= 3:
+        lines.append(f"⚠ {consec} consecutive losses — position sizes halved")
+
+    # VIX reduce warning (B19)
+    if vix_action == "reduce":
+        lines.append(f"⚠ VIX elevated — all sizes at 50%")
+
+    # Capital summary (B6 fix)
+    open_capital  = _open_trades_capital(paper_trades_path)
+    new_picks     = [p for p in picks if not p.get("already_open", False)]
+    today_capital = sum(float(p.get("capital", 0)) for p in new_picks)
+    remains       = CAPITAL - open_capital - today_capital
+    total_deployed = open_capital + today_capital
+
+    lines += [
+        f"{'─'*32}",
+        f"{len(new_picks)} new signal(s)  ·  {len(picks)-len(new_picks)} already open",
+        f"Open positions: Rs {open_capital:,.0f}",
+        f"Today's new:    Rs {today_capital:,.0f}",
+        f"Remains free:   Rs {remains:,.0f}",
+    ]
+
+    # B11: deployment limit warning
+    if total_deployed > MAX_DEPLOYED:
+        lines.append(
+            f"⚠ <b>Warning:</b> Total deployed Rs {total_deployed:,.0f} "
+            f"exceeds 60% limit (Rs {MAX_DEPLOYED:,.0f})"
+        )
 
     # No picks
     if not picks:
-        lines.append(f"")
-        lines.append(f"<b>⛔ STAY IN CASH TODAY</b>")
-        if regime == "HIGH_VIX":
-            lines.append(f"VIX {vix} above danger threshold ({22}).")
-            lines.append(f"No new positions. Protect capital.")
+        lines += [
+            "", "<b>⛔ STAY IN CASH TODAY</b>",
+        ]
+        if vix_action == "avoid":
+            lines.append(f"VIX {vix_val} above {22} — danger zone.")
         else:
-            lines.append(f"No setups qualify today. Patience is a position.")
-        lines.append(f"{'─'*34}")
-        lines.append(f"<i>Not SEBI advice · Your decision</i>")
+            lines.append("No setups qualify today. Patience is a position.")
+        lines += [f"{'─'*32}", "<i>Not SEBI advice · Your decision</i>"]
         return "\n".join(lines)
 
-    # Individual picks
-    for i, p in enumerate(picks, 1):
-        lines.append(_build_pick_block(p, i, len(picks)))
+    # VIX avoid with no picks
+    if vix_action == "avoid":
+        lines += ["", "<b>⛔ STAY IN CASH — VIX DANGER ZONE</b>",
+                  f"VIX {vix_val} above {22}. No new positions.",
+                  f"{'─'*32}", "<i>Not SEBI advice</i>"]
+        return "\n".join(lines)
 
-    # Capital summary at bottom
-    strong_picks = [p for p in picks if p["conf_label"] == "STRONG BUY"]
-    buy_picks    = [p for p in picks if p["conf_label"] == "BUY"]
-    total_if_all = sum(float(p["capital"]) for p in picks)
+    # Individual picks — BUY first, then WATCH
+    buy_picks   = [p for p in picks if p.get("conf_label") == "BUY"]
+    watch_picks = [p for p in picks if p.get("conf_label") != "BUY"]
 
-    lines.append(f"{'─'*34}")
-    lines.append(f"If you take all: Rs {total_if_all:,.0f} deployed")
-    lines.append(f"Rs {CAPITAL - total_if_all:,.0f} remains free")
-    lines.append(f"{'─'*34}")
-    lines.append(f"<i>Paper trading · Not SEBI advice · Your decision</i>")
+    for p in buy_picks + watch_picks:
+        lines.append(format_pick(p))
 
+    lines += [
+        f"{'─'*32}",
+        "<i>Paper trading · Not SEBI advice · Your decision</i>",
+    ]
     return "\n".join(lines)
 
 
 # ── Paper trade logger ─────────────────────────────────────
 
-def _next_paper_id():
-    """Generate next PT-XXX id."""
-    if not os.path.exists(PAPER_TRADES_FILE):
-        return "PT-001"
-    with open(PAPER_TRADES_FILE, newline="") as f:
-        rows = list(csv.DictReader(f))
-    if not rows:
-        return "PT-001"
-    ids = []
-    for r in rows:
-        try:
-            ids.append(int(r.get("id", "PT-000").replace("PT-", "")))
-        except ValueError:
-            pass
-    return f"PT-{max(ids) + 1:03d}"
-
-
-def log_paper_trades(picks, signal_date):
+def log_paper_trades(picks, signal_date, paper_trades_path=None):
     """
-    Auto-log every signal as a paper trade.
-    Called automatically — you never need to add rows manually.
+    Log new signals to paper_trades.csv.
+    Skips already_open trades — never double-logs.
+    B12: schema includes all partial exit fields.
     """
-    if not picks:
+    path   = paper_trades_path or PAPER_TRADES_FILE
+    exists = os.path.exists(path)
+    new_picks = [p for p in picks if not p.get("already_open", False)]
+    if not new_picks:
         return
 
-    exists = os.path.exists(PAPER_TRADES_FILE)
-
-    with open(PAPER_TRADES_FILE, "a", newline="") as f:
+    with open(path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=PAPER_FIELDS, extrasaction="ignore")
         if not exists:
             writer.writeheader()
-
-        for p in picks:
-            tid = _next_paper_id()
+        for p in new_picks:
+            qty = int(p.get("qty", 0))
             writer.writerow({
-                "id":          tid,
-                "date":        signal_date,
-                "ticker":      p["ticker"],
-                "setup_type":  p["setup_type"],
-                "conf_label":  p["conf_label"],
-                "conf_score":  p["conf_score"],
-                "entry":       p["entry"],
-                "sl":          p["sl"],
-                "target":      p["target"],
-                "rr":          p["rr"],
-                "qty":         p["qty"],
-                "capital":     p["capital"],
-                "hold_days":   p["hold_days"],
-                "ev_pct":      p["ev_pct"],
-                "reason":      p["reason"],
-                "status":      "open",
-                "exit_date":   "",
-                "exit_price":  "",
-                "exit_reason": "",
-                "pnl":         "",
-                "result":      "",
-                "days_held":   "",
+                "id":                _next_paper_id(path),
+                "date":              signal_date,
+                "ticker":            p.get("ticker", ""),
+                "setup_type":        p.get("setup_type", ""),
+                "conf_label":        p.get("conf_label", "WATCH"),
+                "conf_score":        p.get("conf_score", 0),
+                "entry":             p.get("entry", 0),
+                "sl":                p.get("sl", 0),
+                "target":            p.get("target", 0),
+                "partial_tgt":       p.get("partial_tgt", 0),
+                "rr":                p.get("rr", 0),
+                "qty":               qty,
+                "qty_open":          qty,         # full qty open initially
+                "qty_closed":        0,           # nothing closed yet
+                "capital":           p.get("capital", 0),
+                "hold_days":         p.get("hold_days", 8),
+                "ev_pct":            p.get("ev_pct", 0),
+                "reason":            p.get("reason", ""),
+                "sector":            p.get("sector", ""),
+                "status":            "open",
+                "exit_date":         "",
+                "exit_price":        "",
+                "exit_reason":       "",
+                "partial_exit_price":"",
+                "partial_exit_date": "",
+                "partial_pnl":       "",
+                "pnl":               "",
+                "result":            "",
+                "days_held":         "",
             })
-            print(f"  Paper trade logged: {tid} — {p['name']} {p['conf_label']}")
+            print(f"  Logged: {p.get('name', p.get('ticker',''))} "
+                  f"[{p.get('conf_label','')}] {signal_date}")
 
 
 # ── Main ───────────────────────────────────────────────────
 
-def run(is_reminder=False):
-    print(f"\n{'='*52}")
+def run(signals=None, paper_trades_path=None, is_reminder=False):
+    """
+    Main entry point. Accepts signals dict (for testing) or reads from file.
+    """
+    now  = datetime.now(IST)
     mode = "REMINDER" if is_reminder else "ALERT"
-    print(f"  {mode}  {datetime.now(IST).strftime('%d %b %Y  %H:%M IST')}")
+    print(f"\n{'='*52}")
+    print(f"  {mode}  {now.strftime('%d %b %Y  %H:%M IST')}")
     print(f"{'='*52}\n")
 
-    # Load signals.json
-    try:
-        with open(SIGNALS_FILE) as f:
-            payload = json.load(f)
-    except FileNotFoundError:
-        payload = {
-            "date": "", "market_open": True, "regime": "UNKNOWN",
-            "regime_desc": "signals.json not found — brain.py may have failed",
-            "nifty_rsi": None, "vix_val": None, "vix_action": "normal",
-            "picks": [],
-            "error": "signals.json missing. Check GitHub Actions logs.",
-        }
-    except Exception as e:
-        payload = {
-            "date": "", "market_open": True, "regime": "UNKNOWN",
-            "regime_desc": "Could not read signals.json",
-            "nifty_rsi": None, "vix_val": None, "vix_action": "normal",
-            "picks": [],
-            "error": str(e),
-        }
+    # Load signals (B20: validated on read)
+    if signals is None:
+        signals = read_signals()
 
-    # Build and send message
-    msg = build_alert_message(payload, is_reminder=is_reminder)
-    _send(msg)
+    # Build and send
+    msg = build_alert_message(signals, paper_trades_path)
+    _send_telegram(msg)
 
-    # Auto-log paper trades (only on first alert, not reminder)
-    if not is_reminder and payload.get("picks"):
-        print("\n  Auto-logging paper trades...")
-        log_paper_trades(payload["picks"], payload.get("date", ""))
+    # Log paper trades (only on primary alert, not reminder)
+    if not is_reminder and signals.get("picks"):
+        print("\n  Logging paper trades...")
+        log_paper_trades(
+            signals["picks"],
+            signals.get("date", now.strftime("%Y-%m-%d")),
+            paper_trades_path,
+        )
 
     print("\n  Done.")
 

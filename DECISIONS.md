@@ -1,189 +1,213 @@
-# DECISIONS.md — Trading Bot v2
+# DECISIONS.md — Trading Bot V6 N200c
 # Claude reads this FIRST at the start of every session.
-# Last updated: 2026-03-25
+# Last updated: 2026-04-17
 
 ---
 
-## PROJECT BASICS
-- Repo: NEW GitHub repo (not the old trading-bot)
-- All files in ROOT of repo — no subdirectories
-- Only one bot.yml: .github/workflows/bot.yml
-- Capital: Rs 6,00,000 (paper trading for first 30 trades)
-- Trader: Sravan Palvai, Dallas TX (UTC-5 / UTC-6)
-- Telegram: Chat ID 5001387539
+## STRATEGY — LOCKED (V6 N200c)
 
-## SCHEDULE (LOCKED — do not change)
-- Brain + Alert : `30 14 * * 0-4`  = 8:00 PM IST
-- Morning reminder: `30 2 * * 1-5` = 8:00 AM IST
-- Scoreboard    : `5 10 * * 1-5`   = 3:35 PM IST
-- WHY 8 PM: market data is fresh (closed at 3:30 PM), no GitHub queue delay, Sravan gets alert at 8:30 AM Dallas time — 13 hours before market open
+Backtest results (10 years, 2015-2026):
+- 3,930 trades · 55.8% WR · Rs 20,468/month avg
+- Annual return: 40.9% · Max drawdown: 8.1%
+- 10 out of 11 years profitable
+- 2025 worst year: -Rs 1,56,797 (accepted risk)
 
-## SIGNAL TIERS (LOCKED)
-- STRONG BUY: score 5-6/6 → size 15% = Rs 90,000
-- BUY: score 3-4/6 → size 10% = Rs 60,000
-- WATCH: score 0-2/6 → size 5% = Rs 30,000 (Sravan's call)
+V6 N200c is the live bot foundation. Do not change parameters without new live data.
+
+---
+
+## PARAMETERS — LOCKED (do not change without backtest)
+
+| Parameter | Value | Reason |
+|-----------|-------|--------|
+| ATR_SL_MULT | 2.0 | Wider SL reduces noise stop-outs (SL hit rate 36% → 25%) |
+| ATR_TGT_MULT | 3.0 | Forced by RR math: 3.0/2.0 = 1.5 = MIN_RR |
+| ATR_PARTIAL_MULT | 2.0 | Partial exit at 2x ATR, SL moves to breakeven |
+| MIN_RR | 1.5 | Minimum reward:risk enforced by ATR math |
+| HOLD_DAYS | 8 | Trading days (not calendar). V4 was 6 — extended |
+| RISK_PER_TRADE | 6000 | Fixed fractional: Rs 6,000 = 1% of Rs 6L capital |
+| MAX_POSITION | 150000 | Rs 1,50,000 hard cap per trade (25% of capital) |
+| MAX_DEPLOYED | 360000 | Rs 3,60,000 = 60% of capital maximum |
+| VIX_AVOID | 22 | Above this → STAY IN CASH, zero signals |
+| VIX_REDUCE | 18 | Above this → size_multiplier = 0.5 |
+| OVERSOLD_RSI_MAX | 38 | V6: was 50 in old system — tighter gate |
+| ADX_TREND_MIN | 18 | Structural filter — blocks whippy stocks |
+| BUY_MIN_SCORE | 4 | Out of 7 factors. WATCH = score < 4 |
+| MONTHLY_LOSS_FLOOR | 30000 | Rs 30,000 monthly loss stops new signals |
+| CONSEC_LOSS_LIMIT | 3 | 3 consecutive losses → size_multiplier = 0.5 |
+
+---
+
+## UNIVERSE — LOCKED
+
+- 126 Nifty 200 stocks (N200c watchlist)
+- TELECOM excluded: BHARTIARTL removed (29% WR)
+- HOSPITAL excluded: APOLLOHOSP, MAXHEALTH removed (41% WR)
+- TATAMOTORS excluded: delisted from Yahoo Finance
+- PSU weak removed: IRFC (50% WR), RAILTEL (43% WR)
+- NBFC weak removed: M&MFIN (44% WR), LICHSGFIN (48% WR)
+- New sectors added: NBFC (56% WR), PSU (66% WR)
+- Star performers: PFC (71% WR), KPITTECH (75% WR), NBCC (68%)
+
+---
+
+## SECTOR PROXIES — LOCKED (fixed from old system)
+
+| Sector | Proxy | Note |
+|--------|-------|------|
+| CHEMICAL | ^CNXFMCG | FIXED: was ^CNXINFRA — wrong |
+| CONSUMER | ^CNXCONSUMP | FIXED: was ^CNXFMCG — wrong |
+| NBFC | ^CNXFIN | New sector |
+| PSU | ^CNXPSE | New sector |
+| All others | Unchanged | Same as before |
+
+---
+
+## ARCHITECTURE — LOCKED
+
+```
+config.py    → All parameters (single source of truth)
+fetcher.py   → Downloads data. Returns dict. No writes.
+analyzer.py  → Screens stocks. Returns picks. No writes.
+brain.py     → Orchestrator. Writes signals.json only.
+alert.py     → Reads signals.json. Writes paper_trades.csv. Sends Telegram.
+scoreboard.py→ Reads paper_trades.csv. Writes paper_trades.csv + trade_log.csv. Sends Telegram.
+```
+
+Hard boundaries (never cross):
+- fetcher: no writes, no alerts
+- analyzer: no writes, no fetching
+- brain: no Telegram, no paper_trades.csv
+- alert: no market data, no screener
+- scoreboard: never touches signals.json
+- morning: read-only, no mutations
+
+---
+
+## SCHEDULE — LOCKED
+
+| Job | Cron (UTC) | IST | Days |
+|-----|-----------|-----|------|
+| brain + alert | 30 14 * * 0-4 | 8:00 PM | Sun–Thu |
+| scoreboard | 5 10 * * 1-5 | 3:35 PM | Mon–Fri |
+| morning reminder | 30 2 * * 1-5 | 8:00 AM | Mon–Fri |
+
+---
+
+## SIGNAL TIERS — LOCKED
+
+- BUY: score 4-7/7 → shown prominently in alert
+- WATCH: score 0-3/7 → shown with lower emphasis
 - STAY IN CASH: VIX above 22 → no signals at all
 
-## KEY THRESHOLDS (LOCKED — do not change without backtest)
-- VIX_AVOID = 22
-- VIX_REDUCE = 18
-- ADX_TREND_MIN = 18
-- ATR_SL_MULT = 1.5
-- ATR_TGT_MULT = 2.5
-- MAX_HOLD_DAYS = 6 (trading days)
-- MIN_RR = 1.5
-- TREND_RSI_MIN = 52 | TREND_RSI_MAX = 66
-- OVERSOLD_RSI_MAX = 50
+Confidence factors (7 total):
+1. Sector uptrend (close > EMA20 of sector index)
+2. RR >= 1.5
+3. EV >= 2.0%
+4. Capital >= Rs 1,20,000 (large enough position)
+5. Setup quality (RSI_DIVERGENCE=2pts, TREND_PULLBACK/BP=1pt)
+6. (included in #5 — RSI_DIVERGENCE scores 2)
+7. RVOL > 1.5 (volume above 20-day average)
 
-## ARCHITECTURE DECISIONS (LOCKED)
-- brain.py → writes signals.json → alert.py reads it (decoupled)
-- alert.py auto-logs ALL signals to paper_trades.csv (Sravan does NOTHING)
-- scoreboard.py runs independently — works even if brain failed
-- config.py is the ONLY place any number lives
-- No chart images — text alerts only (faster, never fails)
-- No Upstox API — phase 1 is paper trading only
-- No intraday — swing only until 30 trades prove the system
+---
 
-## PHASE 1 GOAL (30 days)
-- Bot tracks itself completely automatically
-- Sravan only reads 8 PM alert and 4 AM scoreboard
-- After 30 closed trades: is win rate above 55%?
-- If yes → consider going live with real money
+## SIZING — LOCKED (fixed fractional)
 
-## PHASE 2 (after 30 trades prove it)
-- Sentiment analysis as veto layer (not signal creator)
-- Intraday signals (separate format, separate schedule)
-- Upstox API for live execution
-- Dashboard on GitHub Pages
+Fixed fractional: Risk exactly Rs 6,000 per trade.
+qty = RISK_PER_TRADE / (entry - sl)
+cap = qty * entry (capped at MAX_POSITION = Rs 1,50,000)
 
-## FILES IN THIS REPO (exactly these, no others)
-- config.py — all settings
-- fetcher.py — data download
-- analyzer.py — signal detection
-- brain.py — orchestrator
-- alert.py — Telegram + paper trade logger
-- scoreboard.py — P&L tracker
-- backtest.py — 10yr backtest
-- .github/workflows/bot.yml — three jobs
-- DECISIONS.md — this file
-- .gitignore
-- requirements.txt
-- paper_trades.csv (auto-generated, tracked in git)
-- signals.json (auto-generated, tracked in git)
+VIX reduce (18-22): qty halved
+Consecutive losses (3+): qty halved via size_multiplier
 
-## BACKTEST RESULTS (run 2026-03-25)
-- 3,434 trades · 52.1% WR · Rs +7.46L total · Rs 6,090/month avg
-- Max drawdown 4.2% — system is safe
-- Best setup: RSI_DIVERGENCE 61% WR (only 90 trades/10yr — fires rarely)
-- Best months: Aug, Nov, May, Jun (57-59% WR)
-- Worst months: Feb (41% WR), Dec (47% WR)
-- 2025 was a losing year (-Rs 3K/month avg) — market selloff, not system failure
+Old percentage sizing (15%/10%/5%) is REMOVED. Do not reintroduce.
 
-## HONEST INCOME EXPECTATIONS
-- Rs 6,090/month average on Rs 6L capital
-- 62% of months are positive, 38% negative
-- Worst single month: -Rs 56,284 (rare, happened once)
-- Rs 30K/month requires Rs 25-30L capital — NOT a strategy tweak
-- Path to Rs 30K: add Rs 20K/month from salary to capital pool
-  - Year 1: Rs 9.4L capital → Rs 9,400/month
-  - Year 2: Rs 14.2L capital → Rs 14,200/month
-  - Year 3: Rs 20.2L capital → Rs 20,000/month
+---
 
-## DECISIONS MADE (do not revisit without new data)
-- Swing only for phase 1 — no intraday until paper trading proves system
-- No stock blacklisting based on backtest — that's data snooping
-- No seasonal gates (Feb/Dec) — that's curve fitting
-- No equity holding — these are swing entry signals, not buy-and-hold signals
-- Focused 15 stocks NOT implemented — higher quality but LESS income (Rs 3,891 vs Rs 6,090)
-- STRONG BUY sizing kept at Rs 90K for now — scoring formula needs live validation
-- Full automation (Upstox API execution) is phase 3 — not phase 1 or 2
+## BUGS FIXED IN V6 REBUILD (2026-04-17)
 
-## LLM INTEGRATION PLAN (phase 2 — do not build until 30 live trades complete)
-- Goal: news sentiment as VETO layer only — never creates signals, only blocks them
-- How it works: analyzer finds 3 signals → LLM reads today's news for those 3 stocks → if negative news found, signal downgraded from BUY to WATCH
-- Only call LLM on stocks that passed technical filter (3-5 calls/night, not 50)
-- Cost: ~Rs 15-25/night using Claude API — negligible vs trading income
-- News source: NSE announcements + Economic Times / Moneycontrol headlines
-- New file: llm_context.py — sits between analyzer.py and alert.py
-- What to measure: does win rate improve on signals the LLM did NOT veto vs baseline?
-- DO NOT BUILD until 30 paper trades give us a baseline to compare against
+| Bug | Fix |
+|-----|-----|
+| B1: Partial week in weekly detector | to_weekly() always strips last row (incomplete week) |
+| B3: No dup block in live bot | _open_tickers() reads paper_trades, blocks already-open |
+| B4: Consecutive loss rule not built | brain.get_size_multiplier() reads trade_log.csv |
+| B5: Monthly floor not built | brain.is_floor_hit() reads trade_log.csv |
+| B6: Wrong remains_free in alert | calc_remains_free() subtracts open_trades capital |
+| B7: Wrong sector proxies | CHEMICAL→CNXFMCG, CONSUMER→CNXCONSUMP |
+| B8: CNXCONSUMP 404 crash | sector_uptrend(None) returns True safely |
+| B10: IST timezone | get_today_ist() and get_trade_date() always IST |
+| B11: No deployment warning | Alert warns when >60% capital deployed |
+| B12: Missing partial schema | All partial fields in PAPER_FIELDS |
+| B15: OE on midcaps | oe_allowed() gate: OE only for Nifty50 stocks |
+| B16: Phantom trades | load_open_trades() validates entry_date format |
+| B18: Partial not automated | process_trade() triggers on high >= partial_tgt |
+| B20: No signals.json validation | read_signals() validates schema, never crashes |
+| B21: Wrong price for partial/SL | HIGH for target/partial, LOW for SL |
 
-## PHASE ROADMAP
-- Phase 1 (now — 30 days): Paper trading, fully automatic, Sravan only reads alerts
-- Phase 2 (after 30 trades): Review live results, add intraday signals, discuss full automation
-- Phase 3 (after intraday proven): Upstox API integration, full execution automation
-- Phase 4: Scale capital to Rs 20-30L for Rs 30K/month target
+---
 
-## PAPER TRADING STARTED
-- Date: 2026-03-27 (first market day after setup)
-- After 30 days: upload paper_trades.csv and scoreboard numbers
-- Key question to answer: is live win rate close to 52%?
-- If yes → go live. If no → investigate why before risking real money.
+## WHAT IS NOT BUILT YET (Phase 2)
+
+- LLM sentiment veto: locked until 30 live trades establish baseline
+- Short selling via F&O futures: genuine phase 2 improvement
+- Self-calibrating win rate priors: after 50 closed trades
+- GitHub Pages monitoring dashboard
+- Upstox API for live execution (phase 3)
+
+---
+
+## DECISIONS THAT MUST NOT BE REVISITED
+
+- VIX=22 threshold: tested, 26 was worse — do not change
+- No stock blacklisting by name: data snooping — let ADX filter handle it
+- No seasonal gates (Jan/Feb bad months): curve fitting — do not add
+- No RS filter: proved harmful in V5 (removed 54% WR trades) — do not re-add
+- No position size cap (max 6 simultaneous): wrong in ticker-first backtest loop
+- Fixed fractional over percentage sizing: backtest-validated — do not revert
+- Swing only for phase 1: no intraday until 30 trades prove system
+
+---
+
+## PAPER TRADING STATUS
+
+- Started: 2026-03-27
+- Current strategy: V6 N200c (as of 2026-04-17 rebuild)
+- Open trades from old system: preserved in paper_trades.csv
+  (scoreboard continues tracking them until they close naturally)
+- After 30 closed trades: review live WR vs backtest 55.8%
+- Decision gate: if live WR within 5% of backtest → consider going live
+
+---
 
 ## HOW TO START EVERY SESSION
-1. Say "continue from previous chat"
-2. Claude reads this file first
+
+1. Claude reads DECISIONS.md first
+2. Check conversation search for any relevant prior decisions
 3. One problem per session
 4. Upload files if code is involved
+5. Test cases before building — always
+6. Scenario tests before declaring any fix correct — always
 
-## BUGS FIXED (2026-03-26 session)
-- brain.py: was checking TODAY is market day — fixed to check TOMORROW
-  (brain runs at 8 PM to prepare for next morning, so tomorrow is what matters)
-- alert.py: was showing today's date in header — fixed to show tomorrow's date
-  Format: "FRI 27 MAR 2026 · 11:52 PM IST  (for tomorrow's open)"
-- Lesson: always run scenario tests before saying "working correctly"
-  Scenarios to always test: holiday evening, Friday evening, Sunday evening, consecutive holidays
+---
 
-## HOW WE CAUGHT BUGS THIS SESSION
-- Sravan spotted the date issue by thinking about intent, not code
-- Rule going forward: Claude runs scenario tests and shows pass/fail output
-  before declaring any file correct. No more "working perfectly" without proof.
-- brain.py: trade_date was writing today's date — fixed to write next market day
-  (skips weekends AND holidays, so Friday evening correctly writes Monday's date)
-  Tested: Thu holiday→Fri27, Fri→Mon30, Sun→Mon30, Thu before long weekend→Mon+
-- brain.py: added midnight rule — if running between 12 AM and 6 AM IST,
-  treat today as trade date (handles GitHub Actions delays + manual test runs)
-  Tested 8 scenarios all pass including Fri 12:08 AM → shows Fri 27 correctly
+## REPO STRUCTURE (exactly these files)
 
-## BUGS FIXED (2026-03-27 session)
-- fetcher.py: batch size reduced 8→4, delay 1.2→2.0 to fix yfinance duplicates
-  (23/49 stocks were showing as duplicates — half the watchlist was wrong data)
-- config.py: TATAMOTORS.NS removed — delisted from Yahoo Finance
-- alert.py: confirmed reads trade_date from signals.json not recalculating
-- brain.py: date.today() returns UTC on GitHub runners — fixed to now.date() (IST)
-  Root cause: 01:26 AM IST = 7:56 PM UTC March 26 (holiday) → jumped to March 30
-  Fix: use now.date() which uses the IST timezone we already set on `now`
-  Lesson: NEVER use date.today() or datetime.now() without explicit timezone on GitHub Actions
+```
+config.py
+fetcher.py
+analyzer.py
+brain.py
+alert.py
+scoreboard.py
+.github/workflows/bot.yml   ← only this one, not bot.yml at root
+DECISIONS.md
+requirements.txt
+signals.json                 ← auto-generated, tracked in git
+paper_trades.csv             ← auto-generated, tracked in git
+trade_log.csv                ← auto-generated, tracked in git
+.gitignore
+```
 
-## BUGS FIXED (2026-04-09 session)
-- analyzer.py: `too many values to unpack (expected 6)` crash
-  Root cause: `_quality_and_size()` failure path returned `False + 6 zeros = 7 values`
-  but caller unpacked only 6. Fixed: `*([0] * 6)` → `*([0] * 5)` (False + 5 = 6 total)
-  4 occurrences fixed.
-- First day VIX dropped below 20 (19.7) — 8 signals fired successfully after fix.
-
-## FEATURE ADDED (2026-04-09 session)
-- scoreboard.py: Trailing Stop-Loss implemented
-  Phase 1 — Breakeven: price >= entry + 2% → SL moved to entry (no loss possible)
-  Phase 2 — Trail: price >= entry + 4% → SL trailed to today's low - 0.5% buffer
-  Scoreboard message now shows 🔒 tag on trades where SL has been trailed
-  Paper trades only — no impact on live bot or Upstox orders
-  DECISIONS: trailing SL is intentional and locked. Do not remove without backtest.
-
-## BUGS FIXED (2026-04-10 session — paper_trades analysis)
-- analyzer.py: Added 3 sanity checks in _quality_and_size() after SL calculation:
-  1. SL must be below entry (sl >= entry → skip — catches inverted ATR)
-  2. SL distance must be >= 0.3% of entry (catches phantom 1-paisa stops)
-  3. Target must be above entry (tgt <= entry → skip)
-  Root cause: yfinance occasionally returns duplicate/wrong data for a ticker.
-  ATR calculated on wrong stock history produces impossible SL values.
-  These 3 checks block all known bad-data patterns before they reach paper_trades.csv.
-
-- paper_trades.csv: Cleaned 8 buggy rows from first 2 days of signals:
-  Removed: ABB x2 (SL > entry), LTIM (1-paisa SL), HEROMOTOCO (1-paisa SL),
-           EICHERMOT (SL > entry), JSWSTEEL (SL = Rs 1,197 on Rs 205 stock),
-           DIVISLAB (SL = Rs 5,901 on Rs 1,211 stock), DRREDDY (SUNPHARMA data)
-  Kept: 6 clean trades — TATASTEEL x2, TITAN, BRITANNIA, BHARTIARTL, SUNPHARMA
-
-- LESSON: Always check SL vs entry sanity before logging paper trades.
-  The sanity check in analyzer.py now prevents this class of bug permanently.
+NOTE: Two bot.yml files exist in repo history. Only `.github/workflows/bot.yml`
+is read by GitHub Actions. `bot.yml` at root is ignored. Verify with:
+`git ls-files | grep yml`
