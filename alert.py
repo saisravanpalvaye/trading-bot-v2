@@ -32,6 +32,7 @@ PAPER_FIELDS = [
     "exit_date", "exit_price", "exit_reason",
     "partial_exit_price", "partial_exit_date", "partial_pnl",
     "pnl", "result", "days_held",
+    "current_price", "live_pnl",   # updated by scoreboard on every run
 ]
 
 

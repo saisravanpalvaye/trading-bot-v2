@@ -29,6 +29,7 @@ PAPER_FIELDS = [
     "exit_date", "exit_price", "exit_reason",
     "partial_exit_price", "partial_exit_date", "partial_pnl",
     "pnl", "result", "days_held",
+    "current_price", "live_pnl",   # updated by scoreboard on every run
 ]
 
 TRADE_LOG_FIELDS = [
@@ -354,6 +355,16 @@ def monitor_and_close(paper_trades_path=None, trade_log_path=None):
             print(f"  Could not fetch {ticker} — skipping")
             continue
 
+        # Update current_price and live_pnl for dashboard visibility
+        try:
+            entry_val = float(trade.get("entry", 0) or 0)
+            qty_open  = int(float(trade.get("qty_open", trade.get("qty", 0)) or 0))
+            ltp       = price["close"]
+            trade["current_price"] = round(ltp, 2)
+            trade["live_pnl"]      = round((ltp - entry_val) * qty_open, 2)
+        except Exception:
+            pass
+
         exit_reason = process_trade(trade, price, path, today)
 
         if exit_reason:
@@ -480,10 +491,26 @@ def build_scoreboard_message(closed_today, all_trades):
             sl_tag = ""
             if sl >= entry + 0.01:
                 sl_tag = "  🔒 SL→breakeven"
-            lines.append(
-                f"  {nm}  Day {days}/{HOLD_DAYS}"
-                f"{sl_tag}{partial_note}"
-            )
+            # Show current price and live P&L if available
+            ltp     = t.get("current_price", "")
+            lpnl    = t.get("live_pnl", "")
+            entry_v = float(t.get("entry", 0) or 0)
+            if ltp and lpnl:
+                ltp   = float(ltp)
+                lpnl  = float(lpnl)
+                arrow = "↑" if lpnl >= 0 else "↓"
+                pct   = round((ltp - entry_v) / entry_v * 100, 1) if entry_v else 0
+                lines.append(
+                    f"  {nm}  Day {days}/{HOLD_DAYS}  "
+                    f"{entry_v:,.0f}→{ltp:,.0f} ({arrow}{abs(pct):.1f}%)  "
+                    f"Rs {lpnl:+,.0f}"
+                    f"{sl_tag}{partial_note}"
+                )
+            else:
+                lines.append(
+                    f"  {nm}  Day {days}/{HOLD_DAYS}"
+                    f"{sl_tag}{partial_note}"
+                )
 
     if stats:
         lines += [
