@@ -1,1 +1,4 @@
 id,date,ticker,setup_type,conf_label,conf_score,entry,sl,target,partial_tgt,rr,qty,qty_open,qty_closed,capital,hold_days,ev_pct,reason,sector,status,exit_date,exit_price,exit_reason,partial_exit_price,partial_exit_date,partial_pnl,pnl,result,days_held,current_price,live_pnl
+PT-001,2026-04-20,IOC.NS,RSI_DIVERGENCE,BUY,5,145.88,136.98,159.23,154.78,1.5,674,674,0,98323,8,2.29,"RSI divergence — price at low, RSI 49 above recent low",ENERGY,open,,,,,,,,,,,
+PT-002,2026-04-20,DABUR.NS,OVERSOLD_EXHAUSTION,BUY,4,442.85,414.90,484.78,470.80,1.5,214,214,0,94770,8,4.10,RSI 50 turning up from oversold · volume drying,FMCG,open,,,,,,,,,,,
+PT-003,2026-04-20,CIPLA.NS,OVERSOLD_EXHAUSTION,BUY,4,1240.80,1193.72,1311.42,1287.88,1.5,120,120,0,148896,8,2.47,RSI 47 turning up from oversold · volume drying,PHARMA,open,,,,,,,,,,,
