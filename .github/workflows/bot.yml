@@ -91,7 +91,9 @@ jobs:
         run: |
           git config user.name  "Trading Bot"
           git config user.email "bot@trading-bot-v2"
-          git add paper_trades.csv trade_log.csv
+          git add paper_trades.csv
+          touch trade_log.csv
+          git add trade_log.csv
           git diff --cached --quiet || git commit -m "scoreboard: update $(date -u '+%Y-%m-%d %H:%M')"
           git push
 
