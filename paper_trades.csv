@@ -1,7 +1,7 @@
 id,date,ticker,setup_type,conf_label,conf_score,entry,sl,target,partial_tgt,rr,qty,qty_open,qty_closed,capital,hold_days,ev_pct,reason,sector,status,exit_date,exit_price,exit_reason,partial_exit_price,partial_exit_date,partial_pnl,pnl,result,days_held,current_price,live_pnl
-PT-001,2026-04-20,IOC.NS,RSI_DIVERGENCE,BUY,5,145.88,136.98,159.23,154.78,1.5,674,674,0,98323,8,2.29,"RSI divergence — price at low, RSI 49 above recent low",ENERGY,open,,,,,,,,,,147.31,963.82
-PT-002,2026-04-20,DABUR.NS,OVERSOLD_EXHAUSTION,BUY,4,442.85,414.90,484.78,470.80,1.5,214,214,0,94770,8,4.10,RSI 50 turning up from oversold · volume drying,FMCG,open,,,,,,,,,,452.0,1958.1
-PT-003,2026-04-20,CIPLA.NS,OVERSOLD_EXHAUSTION,BUY,4,1240.80,1193.72,1311.42,1287.88,1.5,120,120,0,148896,8,2.47,RSI 47 turning up from oversold · volume drying,PHARMA,open,,,,,,,,,,1232.5,-996.0
-PT-004,2026-04-21,RELIANCE.NS,RSI_DIVERGENCE,BUY,4,1363.30,1301.29,1456.31,1425.31,1.5,48,48,0,65438,8,1.71,"RSI divergence — price at low, RSI 49 above recent low",ENERGY,open,,,,,,,,,,1353.3,-480.0
-PT-005,2026-04-21,LUPIN.NS,TREND_PULLBACK,WATCH,3,2328.70,2229.13,2478.05,2428.27,1.5,30,30,0,69861,8,1.71,RSI 55 pulling back to EMA20 · ADX structural,PHARMA,open,,,,,,,,,,2311.5,-516.0
-PT-006,2026-04-22,HEROMOTOCO.NS,RSI_DIVERGENCE,BUY,5,5259.0,4942.88,5733.18,5575.12,1.5,18,18,0,94662.0,8,2.25,"RSI divergence — price at low, RSI 49 above recent low",AUTO,open,,,,,,,,,,,
+PT-001,2026-04-20,IOC.NS,RSI_DIVERGENCE,BUY,5,145.88,136.98,159.23,154.78,1.5,674,674,0,98323,8,2.29,"RSI divergence — price at low, RSI 49 above recent low",ENERGY,open,,,,,,,,,,147.36,997.52
+PT-002,2026-04-20,DABUR.NS,OVERSOLD_EXHAUSTION,BUY,4,442.85,414.90,484.78,470.80,1.5,214,214,0,94770,8,4.10,RSI 50 turning up from oversold · volume drying,FMCG,open,,,,,,,,,,460.0,3670.1
+PT-003,2026-04-20,CIPLA.NS,OVERSOLD_EXHAUSTION,BUY,4,1240.80,1193.72,1311.42,1287.88,1.5,120,120,0,148896,8,2.47,RSI 47 turning up from oversold · volume drying,PHARMA,open,,,,,,,,,,1236.3,-539.99
+PT-004,2026-04-21,RELIANCE.NS,RSI_DIVERGENCE,BUY,4,1363.30,1301.29,1456.31,1425.31,1.5,48,48,0,65438,8,1.71,"RSI divergence — price at low, RSI 49 above recent low",ENERGY,open,,,,,,,,,,1362.1,-57.6
+PT-005,2026-04-21,LUPIN.NS,TREND_PULLBACK,WATCH,3,2328.70,2229.13,2478.05,2428.27,1.5,30,30,0,69861,8,1.71,RSI 55 pulling back to EMA20 · ADX structural,PHARMA,open,,,,,,,,,,2307.9,-624.0
+PT-006,2026-04-22,HEROMOTOCO.NS,RSI_DIVERGENCE,BUY,5,5259.0,4942.88,5733.18,5575.12,1.5,18,18,0,94662.0,8,2.25,"RSI divergence — price at low, RSI 49 above recent low",AUTO,open,,,,,,,,,,5189.0,-1260.0
