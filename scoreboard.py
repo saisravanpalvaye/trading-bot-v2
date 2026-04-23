@@ -498,7 +498,7 @@ def build_scoreboard_message(closed_today, all_trades):
             nm   = t.get("ticker", "").replace(".NS", "")
             cl   = t.get("conf_label", "")
             partial = float(t.get("partial_pnl", 0) or 0)
-            partial_note = f"  (incl. partial Rs{partial:+,.0f})" if partial else ""
+            partial_note = f"  (partial Rs{partial:+,.0f} locked + breakeven exit)" if partial else ""
             lines.append(
                 f"  {icon} {nm}  {rsn}  "
                 f"<b>Rs {pnl:+,.0f}</b>  [{cl}]{partial_note}"
@@ -516,11 +516,16 @@ def build_scoreboard_message(closed_today, all_trades):
             today_d = datetime.now(IST).date()
             days  = _count_trading_days(t.get("date", ""), today_d)
             status= t.get("status", "open")
-            # Show partial booked if exists
+            # Show partial booked if exists (check qty_closed, not just status)
             partial_note = ""
-            if status == "partial":
-                partial_pnl = float(t.get("partial_pnl", 0) or 0)
-                partial_note = f"  ◑ partial Rs{partial_pnl:+,.0f} booked"
+            qty_closed_v = int(float(t.get("qty_closed", 0) or 0))
+            partial_pnl_v = float(t.get("partial_pnl", 0) or 0)
+            if qty_closed_v > 0 and partial_pnl_v != 0:
+                partial_note = (
+                    f"  ◑ partial {qty_closed_v}shares@"
+                    f"Rs{float(t.get('partial_exit_price',0) or 0):,.0f} "
+                    f"locked Rs{partial_pnl_v:+,.0f}"
+                )
             # SL trail indicator
             sl_tag = ""
             if sl >= entry + 0.01:
