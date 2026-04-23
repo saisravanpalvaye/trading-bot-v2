@@ -33,7 +33,8 @@ ATR_TGT_MULT        = 3.0  # TGT  = entry + 3.0 * ATR  → RR = 1.5
 ATR_PARTIAL_MULT    = 2.0  # Partial exit at entry + 2.0 * ATR (50% qty)
 ATR_PERIOD          = 14
 RSI_PERIOD          = 14
-HOLD_DAYS           = 8    # trading days (not calendar days)
+HOLD_DAYS           = 8    # trading days — BUY signals
+WATCH_HOLD_DAYS     = 5    # trading days — WATCH signals (tiered hold, backtested)
 
 # ── Quality gates ──────────────────────────────────────────
 MIN_RR              = 1.5  # minimum reward:risk — enforced by math (3.0/2.0=1.5)

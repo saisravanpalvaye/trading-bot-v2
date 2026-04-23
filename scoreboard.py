@@ -292,7 +292,7 @@ def process_trade(trade, price_bar, paper_trades_path=None, trade_date=None):
     elif check_target_trigger(trade, price_bar):
         exit_reason = "TARGET"
         exit_price  = float(trade.get("target", 0))
-    elif is_day_cap(trade, trade_date):
+    elif is_day_cap(trade, trade_date, int(float(trade.get("hold_days", HOLD_DAYS) or HOLD_DAYS))):
         exit_reason = "DAY_CAP"
         exit_price  = price_bar["close"]          # exit at close on day cap
 
@@ -495,20 +495,21 @@ def build_scoreboard_message(closed_today, all_trades):
             ltp     = t.get("current_price", "")
             lpnl    = t.get("live_pnl", "")
             entry_v = float(t.get("entry", 0) or 0)
+            t_hold = int(float(t.get("hold_days", HOLD_DAYS) or HOLD_DAYS))
             if ltp and lpnl:
                 ltp   = float(ltp)
                 lpnl  = float(lpnl)
                 arrow = "↑" if lpnl >= 0 else "↓"
                 pct   = round((ltp - entry_v) / entry_v * 100, 1) if entry_v else 0
                 lines.append(
-                    f"  {nm}  Day {days}/{HOLD_DAYS}  "
+                    f"  {nm}  Day {days}/{t_hold}  "
                     f"{entry_v:,.0f}→{ltp:,.0f} ({arrow}{abs(pct):.1f}%)  "
                     f"Rs {lpnl:+,.0f}"
                     f"{sl_tag}{partial_note}"
                 )
             else:
                 lines.append(
-                    f"  {nm}  Day {days}/{HOLD_DAYS}"
+                    f"  {nm}  Day {days}/{t_hold}"
                     f"{sl_tag}{partial_note}"
                 )
 
