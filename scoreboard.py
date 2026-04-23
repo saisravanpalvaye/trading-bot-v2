@@ -183,12 +183,46 @@ def _fetch_price(ticker):
 
 # ── Exit detection (B21 fix) ───────────────────────────────
 
-def check_sl_trigger(trade, price_bar):
+def is_valid_price_bar(bar):
     """
-    SL triggered when LOW <= sl.
-    B21: uses LOW not close for SL detection.
+    Validates yfinance price bar before using for SL/target checks.
+    Rejects bars where low is >3% below close — indicates bad data,
+    not real price action. A genuine SL hit will have close near the low.
+
+    Example of bad data caught:
+      low=1240, close=1307 → 5.1% gap → rejected (CIPLA false SL Apr 23)
+
+    Example of real SL hit:
+      low=1240, close=1243 → 0.2% gap → accepted (genuine selloff)
     """
     try:
+        low   = float(bar["low"])
+        close = float(bar["close"])
+        high  = float(bar["high"])
+        # Basic structure: high >= close >= low
+        if high < close or close < low:
+            print(f"  [BAD DATA] Invalid bar structure: "
+                  f"high={high} close={close} low={low} — skipping")
+            return False
+        # Low vs close gap check: max 3% allowed
+        if low < close * 0.97:
+            print(f"  [BAD DATA] Low={low:.2f} is {(1-low/close)*100:.1f}% "
+                  f"below close={close:.2f} — likely bad yfinance data, skipping SL check")
+            return False
+        return True
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
+def check_sl_trigger(trade, price_bar):
+    """
+    SL triggered when LOW <= sl AND price bar is valid data.
+    B21: uses LOW not close for SL detection.
+    Bad data protection: rejects bars where low is >3% below close.
+    """
+    try:
+        if not is_valid_price_bar(price_bar):
+            return False
         return float(price_bar["low"]) <= float(trade["sl"])
     except (KeyError, ValueError, TypeError):
         return False
