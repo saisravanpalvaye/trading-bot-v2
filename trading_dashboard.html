@@ -281,10 +281,10 @@ body {
   <div id="loadingBar" class="loading-bar" style="margin-bottom:16px"></div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('overview')">Overview</div>
-    <div class="tab" onclick="switchTab('positions')">Positions</div>
-    <div class="tab" onclick="switchTab('signals')">Signals</div>
-    <div class="tab" onclick="switchTab('analytics')">Analytics</div>
+    <div class="tab active" onclick="window.switchTab('overview')">Overview</div>
+    <div class="tab" onclick="window.switchTab('positions')">Positions</div>
+    <div class="tab" onclick="window.switchTab('signals')">Signals</div>
+    <div class="tab" onclick="window.switchTab('analytics')">Analytics</div>
   </div>
 
   <!-- OVERVIEW TAB -->
@@ -414,9 +414,18 @@ function parseJSON(text) {
 
 // ── FETCH DATA ─────────────────────────────────────────────
 async function fetchGitHub(path) {
-  const r = await fetch(`${RAW}/${path}?t=${Date.now()}`);
-  if (!r.ok) throw new Error(`${path} not found`);
-  return r.text();
+  const url = `${RAW}/${path}?t=${Date.now()}`;
+  try {
+    // Try direct first (works on GitHub Pages / localhost)
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) return r.text();
+  } catch(_) {}
+  // Fallback: allorigins proxy (works from file://)
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const r2 = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
+  if (!r2.ok) throw new Error(`${path} not found`);
+  const d = await r2.json();
+  return d.contents;
 }
 
 // ── STATE ──────────────────────────────────────────────────
@@ -520,11 +529,11 @@ function renderMetrics() {
   const depPct    = Math.round(deployedCap/CAPITAL*100);
 
   document.getElementById('metricsRow').innerHTML = `
-    ${metric('Total P&L', fmtPnl(totalPnl), totalPnl >= 0 ? 'pos' : 'neg', `Closed ${fmtPnl(closedPnl)} + Live ${fmtPnl(livePnl)}`)}
-    ${metric('Win Rate', wr + '%', 'neutral', `${wins}W / ${closed.length-wins}L (${closed.length} closed)`)}
-    ${metric('Deployed', fmtRs(deployedCap), depPct > 60 ? 'neg' : 'pos', `${depPct}% of capital`)}
+    ${metric('Total P&L', fmtPnl(totalPnl), totalPnl >= 0 ? 'pos' : 'neg', 'Closed ' + fmtPnl(closedPnl) + ' + Live ' + fmtPnl(livePnl))}
+    ${metric('Win Rate', wr + '%', 'neutral', wins + 'W / ' + (closed.length-wins) + 'L (' + closed.length + ' closed)')}
+    ${metric('Deployed', fmtRs(deployedCap), depPct > 60 ? 'neg' : 'pos', depPct + '% of capital')}
     ${metric('Free Capital', fmtRs(free), free < 50000 ? 'neg' : 'neutral', 'available to deploy')}
-    ${metric('Open Trades', open.length, 'neutral', `${closed.length} closed`)}
+    ${metric('Open Trades', open.length, 'neutral', closed.length + ' closed')}
     ${metric('Month P&L', fmtPnl(totalPnl), totalPnl>=0?'pos':'neg', 'all time')}
   `;
 
@@ -626,7 +635,7 @@ function posCard(t) {
     </div>
     <div class="pos-row">
       <div class="pos-item">Entry<span>${fmtRs(entry)}</span></div>
-      <div class="pos-item">Live<span>${livePrice} ${pctChange?`(${pctChange>=0?'+':''}${pctChange.toFixed(1)}%)`:''}` </span></div>
+      <div class="pos-item">Live<span>${livePrice} ${pctChange ? '(' + (pctChange>=0?'+':'') + pctChange.toFixed(1) + '%)' : ''}</span></div>
       <div class="pos-item">SL<span class="${isBreakeven?'safe':'r'}">${fmtRs(sl)}${isBreakeven?' 🔒':''}</span></div>
       <div class="pos-item">Target<span class="g">${fmtRs(target)}</span></div>
       <div class="pos-item">Partial<span class="a">${fmtRs(partial)}</span></div>
@@ -769,7 +778,7 @@ function renderAnalytics() {
     Math.abs(wins.reduce((s,t)=>s+parseFloat(t.pnl||0),0) / losses.reduce((s,t)=>s+parseFloat(t.pnl||0),0)) : 0;
 
   document.getElementById('analyticsMetrics').innerHTML = `
-    ${metric('Closed trades', closed.length, 'neutral', `${open.length} still open`)}
+    ${metric('Closed trades', closed.length, 'neutral', open.length + ' still open')}
     ${metric('Avg win', fmtPnl(avgWin), 'pos', 'per winning trade')}
     ${metric('Avg loss', fmtPnl(avgLoss), 'neg', 'per losing trade')}
     ${metric('Profit factor', pf.toFixed(2) + 'x', pf >= 1 ? 'pos' : 'neg', 'win total / loss total')}
