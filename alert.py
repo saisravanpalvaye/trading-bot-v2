@@ -361,6 +361,8 @@ def log_paper_trades(picks, signal_date, paper_trades_path=None):
     Log new signals to paper_trades.csv.
     Skips already_open trades — never double-logs.
     B12: schema includes all partial exit fields.
+    ID fix: calculate starting ID ONCE before loop, increment in memory.
+    This prevents duplicate IDs when multiple signals fire same night.
     """
     path   = paper_trades_path or PAPER_TRADES_FILE
     exists = os.path.exists(path)
@@ -368,14 +370,19 @@ def log_paper_trades(picks, signal_date, paper_trades_path=None):
     if not new_picks:
         return
 
+    # Calculate starting ID once — avoids duplicate IDs across multiple picks
+    next_id = _next_paper_id_int(path)
+
     with open(path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=PAPER_FIELDS, extrasaction="ignore")
         if not exists:
             writer.writeheader()
         for p in new_picks:
             qty = int(p.get("qty", 0))
+            tid = f"PT-{next_id:03d}"
+            next_id += 1   # increment in memory — not re-reading file
             writer.writerow({
-                "id":                _next_paper_id(path),
+                "id":                tid,
                 "date":              signal_date,
                 "ticker":            p.get("ticker", ""),
                 "setup_type":        p.get("setup_type", ""),
