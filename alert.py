@@ -1,453 +1,343 @@
-"""
-alert.py — Reads signals.json. Sends Telegram alert. Logs paper trades.
-
-Fixed in V6 rebuild:
-  B6:  remains_free = CAPITAL - open_trades_capital - today_signals
-  B11: warning when deployment would exceed 60% of capital
-  B20: signals.json validated before processing (never crashes on bad JSON)
-  Schema: paper_trades.csv includes partial exit fields
-  Labels: BUY shown prominently, WATCH shown with lower emphasis
-"""
-import json
-import csv
-import os
-import sys
-from datetime import datetime, timezone, timedelta
-from config import (
-    TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
-    SIGNALS_FILE, PAPER_TRADES_FILE, CAPITAL,
-    MAX_DEPLOYED,
-)
-
-IST = timezone(timedelta(hours=5, minutes=30))
-
-# ── paper_trades.csv schema ────────────────────────────────
-# Includes partial exit fields (B12 fix)
-PAPER_FIELDS = [
-    "id", "date", "ticker", "setup_type", "conf_label", "conf_score",
-    "entry", "sl", "target", "partial_tgt", "rr", "qty",
-    "qty_open", "qty_closed",           # partial exit tracking
-    "capital", "hold_days", "ev_pct", "reason", "sector",
-    "status",                            # open / partial / closed / expired
-    "exit_date", "exit_price", "exit_reason",
-    "partial_exit_price", "partial_exit_date", "partial_pnl",
-    "pnl", "result", "days_held",
-    "current_price", "live_pnl",   # updated by scoreboard on every run
-]
+import requests
+from datetime import date
+from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 
 
-# ── Telegram helpers ───────────────────────────────────────
-
-def _send_telegram(text):
-    import requests
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+def send(text):
+    url    = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    params = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
     try:
-        r = requests.post(url, params={
-            "chat_id":    TELEGRAM_CHAT_ID,
-            "text":       text,
-            "parse_mode": "HTML",
-        }, timeout=15)
+        r = requests.post(url, params=params, timeout=10)
         if r.status_code == 200:
-            print("  Telegram sent.")
+            print("Telegram alert sent.")
             return True
-        print(f"  Telegram error {r.status_code}: {r.text[:120]}")
+        print(f"Telegram error {r.status_code}: {r.text}")
         return False
     except Exception as e:
-        print(f"  Telegram failed: {e}")
+        print(f"Telegram failed: {e}")
         return False
 
 
-# ── Signals validation ─────────────────────────────────────
-
-def read_signals(signals_file=None):
+def send_photo(image_bytes: bytes, caption: str) -> bool:
     """
-    Read and validate signals.json.
-    B20 fix: validates schema before returning. Returns None on invalid/missing.
+    Send a PNG image to Telegram with a plain-text caption.
+    Falls back to text message if photo send fails.
     """
-    path = signals_file or SIGNALS_FILE
+    from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     try:
-        with open(path) as f:
-            payload = json.load(f)
-    except FileNotFoundError:
-        return {
-            "date": "", "market_open": True, "regime": "UNKNOWN",
-            "regime_desc": "signals.json not found",
-            "nifty_rsi": None, "vix": None, "vix_action": "normal",
-            "floor_hit": False, "consec_losses": 0, "size_multiplier": 1.0,
-            "picks": [],
-            "error": "signals.json missing — check GitHub Actions logs",
-        }
+        r = requests.post(url, data={
+            "chat_id":    TELEGRAM_CHAT_ID,
+            "caption":    caption,
+            "parse_mode": "HTML",
+        }, files={
+            "photo": ("alert.png", image_bytes, "image/png"),
+        }, timeout=30)
+        if r.status_code == 200:
+            print("Telegram photo sent.")
+            return True
+        print(f"Telegram photo error {r.status_code}: {r.text[:100]}")
+        return False
     except Exception as e:
-        return {
-            "date": "", "market_open": True, "regime": "UNKNOWN",
-            "regime_desc": "Could not read signals.json",
-            "nifty_rsi": None, "vix": None, "vix_action": "normal",
-            "floor_hit": False, "consec_losses": 0, "size_multiplier": 1.0,
-            "picks": [],
-            "error": str(e),
-        }
-    # Ensure required keys exist with safe defaults
-    payload.setdefault("picks", [])
-    payload.setdefault("floor_hit", False)
-    payload.setdefault("consec_losses", 0)
-    payload.setdefault("size_multiplier", 1.0)
-    payload.setdefault("vix_action", "normal")
-    payload.setdefault("error", None)
-    payload.setdefault("market_open", True)
-    return payload
+        print(f"Telegram photo failed: {e}")
+        return False
 
 
-# ── Capital tracking ───────────────────────────────────────
-
-def _open_trades_capital(paper_trades_path=None):
+def send_alert_with_image(picks, stale_exits, trailing_sls,
+                          deployed, available,
+                          nifty_rsi, vix_val, vix_label,
+                          vix_action, regime, regime_desc,
+                          **kwargs) -> bool:
     """
-    Sum capital of all OPEN trades in paper_trades.csv.
-    B6 fix: alert must account for already-deployed capital.
-    Returns 0 if file missing (safe fallback).
+    Try to send image alert. Falls back to text if image fails.
+    This is the main entry point called by run.py.
     """
-    path = paper_trades_path or PAPER_TRADES_FILE
-    if not os.path.exists(path):
-        return 0
+    # Try image first
     try:
-        total = 0.0
-        with open(path, newline="") as f:
-            for row in csv.DictReader(f):
-                if row.get("status", "").lower() in ("open", "partial"):
-                    try:
-                        total += float(row.get("capital", 0) or 0)
-                    except ValueError:
-                        pass
-        return total
-    except Exception:
-        return 0
+        from chart import build_alert_image, build_caption
+        img_bytes = build_alert_image(
+            picks        = picks,
+            stale_exits  = stale_exits,
+            trailing_sls = trailing_sls or [],
+            deployed     = deployed,
+            available    = available,
+            nifty_rsi    = nifty_rsi,
+            vix_val      = vix_val,
+            vix_label    = vix_label,
+            vix_action   = vix_action,
+            regime       = regime,
+            regime_desc  = regime_desc,
+        )
+        if img_bytes:
+            caption = build_caption(picks, vix_val, vix_action)
+            if send_photo(img_bytes, caption):
+                return True
+            print("  Photo send failed — falling back to text")
+    except Exception as e:
+        print(f"  Image generation error: {e} — falling back to text")
 
-
-def calc_remains_free(signals, paper_trades_path=None):
-    """
-    Calculate truly available capital.
-    B6 fix: remains_free = CAPITAL - open_trades_capital - today_signals_capital
-    """
-    open_capital  = _open_trades_capital(paper_trades_path)
-    today_capital = sum(
-        float(p.get("capital", 0))
-        for p in signals.get("picks", [])
-        if not p.get("already_open", False)
+    # Fallback to text message
+    print("  Sending text alert instead...")
+    message = build_message(
+        picks        = picks,
+        stale_exits  = stale_exits,
+        upgrades     = kwargs.get("upgrades", []),
+        deployed     = deployed,
+        available    = available,
+        nifty_rsi    = nifty_rsi,
+        vix_val      = vix_val,
+        vix_label    = vix_label,
+        vix_action   = vix_action,
+        regime       = regime,
+        regime_desc  = regime_desc,
+        trailing_sls = trailing_sls,
     )
-    return round(CAPITAL - open_capital - today_capital, 0)
+    return send(message)
 
 
-# ── Paper trade ID ─────────────────────────────────────────
-
-def _next_paper_id(paper_trades_path=None):
-    path = paper_trades_path or PAPER_TRADES_FILE
-    if not os.path.exists(path):
-        return "PT-001"
-    try:
-        with open(path, newline="") as f:
-            rows = list(csv.DictReader(f))
-        if not rows:
-            return "PT-001"
-        ids = []
-        for r in rows:
-            try:
-                ids.append(int(r.get("id", "PT-000").replace("PT-", "")))
-            except ValueError:
-                pass
-        return f"PT-{max(ids) + 1:03d}" if ids else "PT-001"
-    except Exception:
-        return "PT-001"
+def regime_line(regime, regime_desc, nifty_rsi, vix_val, vix_action):
+    regime_colors = {
+        "BULLISH":  "🟢", "BEARISH": "🔴",
+        "SIDEWAYS": "🟡", "OVERSOLD": "🔵",
+        "HIGH_VIX": "🔴", "NEUTRAL": "⚪", "UNKNOWN": "⚪",
+    }
+    vix_icon = "🟢" if vix_action == "normal" else ("🟡" if vix_action == "reduce" else "🔴")
+    ricon        = regime_colors.get(regime, "⚪")
+    regime_label = regime.replace("_", " ")
+    rsi_str      = f"RSI {nifty_rsi}" if nifty_rsi else "RSI --"
+    vix_str      = f"VIX {vix_val}" if vix_val else "VIX --"
+    return (
+        f"{ricon} <b>{regime_label}</b>  ·  {rsi_str}  {vix_icon} {vix_str}\n"
+        f"<i>{regime_desc}</i>"
+    )
 
 
-# ── Message builders ───────────────────────────────────────
+def conf_dots(conf_factors):
+    """6 emoji dots in one line — green/amber/red."""
+    dot_map = {"green": "✅", "amber": "⚠️", "red": "❌"}
+    dots    = "".join(dot_map.get(v[1], "⚪") for v in conf_factors.values())
+    greens  = sum(1 for v in conf_factors.values() if v[1] == "green")
+    return f"{dots}  <i>{greens}/6 green</i>"
 
-def _regime_icon(regime):
+
+def why_line(reasons):
+    """Compact one-line reasons summary."""
+    short = []
+    for r in reasons[:4]:
+        # shorten each reason to key phrase
+        r = r.replace("recovering from oversold", "recov")
+        r = r.replace("bullish crossover", "cross")
+        r = r.replace("above signal — bullish trend active", "above sig")
+        r = r.replace("above EMA20 and EMA50 — confirmed uptrend", "EMA bull")
+        r = r.replace("above EMA20 — short-term bullish", "EMA20 bull")
+        r = r.replace("bullish — trend confirmed", "bull")
+        r = r.replace("spike — institutional buying detected", "spike")
+        r = r.replace("— moderate trend", "mod")
+        r = r.replace("— very strong trend", "strong")
+        r = r.replace("buyers in control", "bulls lead")
+        r = r.replace("momentum accelerating", "accel")
+        r = r.replace("mild bullish bias", "mild bull")
+        short.append(r.split("—")[0].strip().split("(")[0].strip())
+    return "  ·  ".join(short[:3])
+
+
+def opp_icon(opp_type):
     return {
-        "BULLISH":  "🟢",
-        "BEARISH":  "🔴",
-        "HIGH_VIX": "🟡",
-        "OVERSOLD": "🔵",
-        "NEUTRAL":  "⚪",
-        "CLOSED":   "⭕",
-    }.get(regime, "⚪")
+        "BREAKOUT":        "📈",
+        "OVERSOLD BOUNCE": "🔄",
+        "MOMENTUM SURGE":  "⚡",
+        "SECTOR PLAY":     "🔀",
+        "TREND FOLLOW":    "📊",
+    }.get(opp_type, "📊")
+
+def confirmed_badge(pick):
+    """Show ✔ if 2-candle confirmation passed."""
+    if pick.get("two_candle_confirmed"):
+        return " ✔ confirmed"
+    return ""
 
 
-def format_pick(p):
-    """
-    Format a single pick for Telegram.
-    BUY shown prominently. WATCH shown with lower emphasis.
-    B17: note that entry is at close price, execution is at next-day open.
-    """
-    entry   = float(p["entry"])
-    sl      = float(p["sl"])
-    tgt     = float(p["target"])
-    partial = float(p.get("partial_tgt", 0))
-    qty     = int(p["qty"])
-    cap     = float(p["capital"])
-    rr      = float(p["rr"])
-    score   = int(p.get("conf_score", 0))
-    label   = p.get("conf_label", "WATCH")
-
-    pct_up  = round((tgt - entry) / entry * 100, 1)
-    pct_dn  = round((entry - sl)  / entry * 100, 1)
-    pnl_up  = round((tgt - entry) * qty)
-    pnl_dn  = round((entry - sl)  * qty)
-
-    # BUY vs WATCH visual differentiation
-    if label == "BUY":
-        header = f"✦ <b>BUY</b>  [{score}/7]"
-    else:
-        header = f"◎ WATCH  [{score}/7]"
-
-    lines = [
-        f"{'─'*32}",
-        header,
-        f"",
-        f"<b>{p.get('name', p.get('ticker',''))}</b>  [{p.get('sector','')}]",
-        f"{p.get('setup_display', p.get('setup_type',''))}",
-        f"",
-        f"Entry   ≈ Rs {entry:,.2f}  <i>(at tomorrow's open)</i>",
-        f"Partial   Rs {partial:,.2f}  (exit 50% here → SL → entry)",
-        f"Target  Rs {tgt:,.2f}   +{pct_up}%  (+Rs {pnl_up:,})",
-        f"SL      Rs {sl:,.2f}   -{pct_dn}%  (-Rs {pnl_dn:,})",
-        f"",
-    ]
-
-    size_note = "  ⚠ 50% size — VIX elevated" if p.get("vix_reduced") else ""
-    lines.append(f"Size    Rs {cap:,.0f}  ({qty} shares){size_note}")
-    lines.append(f"Hold    up to {p.get('hold_days', 8)} trading days")
-    lines.append(f"RR      {rr:.2f}x")
-    lines.append(f"")
-    lines.append(f"<i>{p.get('reason','')}</i>")
-
-    if p.get("already_open"):
-        lines.append(f"ℹ️  Already in paper trades — not re-logged")
-
-    return "\n".join(lines)
+def action_line(action, action_detail):
+    icons = {
+        "STRONG BUY": "🚀", "BUY": "✅",
+        "WATCH": "👁",  "SKIP": "⏭", "AVOID": "🚫",
+    }
+    icon = icons.get(action, "➡️")
+    return f"{icon} <b>ACTION : {action}</b>\n         <i>{action_detail}</i>"
 
 
-def build_alert_message(signals, paper_trades_path=None):
-    """
-    Build the full Telegram alert message.
-    B6: correct remains_free calculation
-    B11: deployment limit warning
-    B19: VIX reduce prominently shown
-    B20: handles missing/corrupt signals gracefully
-    """
-    now      = datetime.now(IST)
-    picks    = signals.get("picks", [])
-    regime   = signals.get("regime", "UNKNOWN")
-    nifty_rsi= signals.get("nifty_rsi")
-    vix_val  = signals.get("vix")
-    vix_action = signals.get("vix_action", "normal")
-    floor_hit = signals.get("floor_hit", False)
-    consec   = signals.get("consec_losses", 0)
-    size_mult= signals.get("size_multiplier", 1.0)
-    error    = signals.get("error")
+def fmt_top_pick(pick):
+    """Gold-bordered top pick box."""
+    pct_g  = round((pick["target"] - pick["ltp"]) / pick["ltp"] * 100, 1)
+    pct_l  = round((pick["ltp"]    - pick["sl"])  / pick["ltp"] * 100, 1)
+    profit = round((pick["target"] - pick["ltp"]) * pick["qty"], 0)
+    loss   = round((pick["ltp"]    - pick["sl"])  * pick["qty"], 0)
+    stars  = "★" * min(5, pick["score"] // 20)
+    size_n = "  ⚠️ 50% size" if pick.get("vix_reduced") else ""
+    adx_s  = f"ADX {pick['adx']}" if pick.get("adx") else ""
 
-    trade_date = signals.get("date", "")
-    try:
-        from datetime import datetime as _dt
-        td = _dt.strptime(trade_date, "%Y-%m-%d")
-        mkt_label = td.strftime("%a %d %b %Y").upper()
-    except Exception:
-        mkt_label = trade_date or "NEXT MARKET DAY"
+    return (
+        f"\n┌─── ★ TOP PICK  ·  HIGHEST CONVICTION ───┐\n"
+        f"│\n"
+        f"│ <b>{pick['ticker'].replace('.NS','').replace('&','&amp;')}</b>  <i>[NSE · {pick['sector_label']}]</i>  "
+        f"{pick['score']}/100  {stars}\n"
+        f"│ {opp_icon(pick['opp_type'])} {pick['opp_type']}  ·  Hold {pick['hold_days']} days{confirmed_badge(pick)}\n"
+        f"│ {adx_s}\n"
+        f"│ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n"
+        f"│ ENTRY   <b>₹{pick['entry']:,.2f}</b>\n"
+        f"│ TARGET  ₹{pick['target']:,.2f}  ▲ +{pct_g}%  <i>(+₹{profit:,.0f})</i>\n"
+        f"│ SL      ₹{pick['sl']:,.2f}  ▼ -{pct_l}%  <i>(-₹{loss:,.0f})</i>\n"
+        f"│ SIZE    {pick['qty']} shares  ·  ₹{pick['capital']:,.0f}  ·  R:R 1:{pick['rr']}{size_n}\n"
+        f"│ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n"
+        f"│ CONF    🔥 {pick['confidence']}  {conf_dots(pick['conf_factors'])}\n"
+        f"│ WHY     <i>{why_line(pick['reasons'])}</i>\n"
+        f"│ {action_line(pick['action'], pick['action_detail'])}\n"
+        f"│\n"
+        f"└──────────────────────────────────────┘"
+    )
 
-    date_str = (mkt_label + " · " +
-                now.strftime("%I:%M %p IST").upper() +
-                "  (for tomorrow's open)")
 
-    lines = [
-        "<b>TRADING SIGNALS</b>",
-        f"<i>{date_str}</i>",
-    ]
+def fmt_other_pick(pick, rank):
+    """Dimmer box for pick 2 and 3."""
+    pct_g  = round((pick["target"] - pick["ltp"]) / pick["ltp"] * 100, 1)
+    pct_l  = round((pick["ltp"]    - pick["sl"])  / pick["ltp"] * 100, 1)
+    profit = round((pick["target"] - pick["ltp"]) * pick["qty"], 0)
+    stars  = "★" * min(5, pick["score"] // 20)
+    size_n = "  ⚠️ 50% size" if pick.get("vix_reduced") else ""
 
-    # Regime bar
-    icon  = _regime_icon(regime)
-    rsi_s = f"Nifty RSI {nifty_rsi}" if nifty_rsi else "RSI --"
-    vix_s = f"VIX {vix_val}"         if vix_val   else "VIX --"
-    lines.append(f"{icon} {regime}  ·  {rsi_s}  ·  {vix_s}")
-    lines.append(f"<i>{signals.get('regime_desc', '')}</i>")
+    return (
+        f"\n┌─── #{rank} PICK ──────────────────────────┐\n"
+        f"│ <b>{pick['ticker'].replace('.NS','').replace('&','&amp;')}</b>  "
+        f"{pick['score']}/100  {stars}  "
+        f"{opp_icon(pick['opp_type'])} {pick['opp_type']}\n"
+        f"│ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n"
+        f"│ ENTRY   <b>₹{pick['entry']:,.2f}</b>\n"
+        f"│ TARGET  ₹{pick['target']:,.2f}  ▲ +{pct_g}%  <i>(+₹{profit:,.0f})</i>\n"
+        f"│ SL      ₹{pick['sl']:,.2f}  ▼ -{pct_l}%\n"
+        f"│ SIZE    {pick['qty']} shares  ·  ₹{pick['capital']:,.0f}  ·  R:R 1:{pick['rr']}{size_n}\n"
+        f"│ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n"
+        f"│ CONF    {pick['confidence']}  {conf_dots(pick['conf_factors'])}\n"
+        f"│ WHY     <i>{why_line(pick['reasons'])}</i>\n"
+        f"│ {action_line(pick['action'], pick['action_detail'])}\n"
+        f"└──────────────────────────────────────┘"
+    )
 
-    # Error
-    if error:
-        lines += ["", "❌ Bot error:", f"<code>{str(error)[:200]}</code>",
-                  "Check GitHub Actions logs."]
-        return "\n".join(lines)
 
-    # No market day
-    if not signals.get("market_open", True):
-        lines += ["", "Market closed today — no signals."]
-        return "\n".join(lines)
+def build_message(picks, stale_exits, upgrades,
+                  deployed, available,
+                  nifty_rsi=None,
+                  vix_val=None, vix_label="", vix_action="normal",
+                  regime="NEUTRAL", regime_desc="",
+                  trailing_sls=None):
 
-    # Floor hit
-    if floor_hit:
-        lines += [
-            "", f"{'─'*32}",
-            "⛔ <b>MONTHLY LOSS FLOOR HIT</b>",
-            f"Loss this month exceeded Rs {30000:,}.",
-            "No new signals until next month.",
-            f"{'─'*32}",
-            "<i>Paper trading · Not SEBI advice</i>",
-        ]
-        return "\n".join(lines)
+    today = date.today().strftime("%d %b %Y, %a").upper()
+    lines = []
 
-    # Consecutive loss warning
-    if consec >= 3:
-        lines.append(f"⚠ {consec} consecutive losses — position sizes halved")
+    # ── header ──
+    lines.append(
+        f"<b>╔══════════════════════════════════╗</b>\n"
+        f"<b>  TRADING BOT  ·  {today}</b>\n"
+        f"<b>╚══════════════════════════════════╝</b>"
+    )
 
-    # VIX reduce warning (B19)
-    if vix_action == "reduce":
-        lines.append(f"⚠ VIX elevated — all sizes at 50%")
+    # ── market context ──
+    lines.append(regime_line(regime, regime_desc, nifty_rsi, vix_val, vix_action))
+    lines.append(f"<b>CAPITAL</b>  ₹{deployed:,.0f} deployed  ·  ₹{available:,.0f} free")
+    lines.append("──────────────────────────────────")
 
-    # Capital summary (B6 fix)
-    open_capital  = _open_trades_capital(paper_trades_path)
-    new_picks     = [p for p in picks if not p.get("already_open", False)]
-    today_capital = sum(float(p.get("capital", 0)) for p in new_picks)
-    remains       = CAPITAL - open_capital - today_capital
-    total_deployed = open_capital + today_capital
-
-    lines += [
-        f"{'─'*32}",
-        f"{len(new_picks)} new signal(s)  ·  {len(picks)-len(new_picks)} already open",
-        f"Open positions: Rs {open_capital:,.0f}",
-        f"Today's new:    Rs {today_capital:,.0f}",
-        f"Remains free:   Rs {remains:,.0f}",
-    ]
-
-    # B11: deployment limit warning
-    if total_deployed > MAX_DEPLOYED:
-        lines.append(
-            f"⚠ <b>Warning:</b> Total deployed Rs {total_deployed:,.0f} "
-            f"exceeds 60% limit (Rs {MAX_DEPLOYED:,.0f})"
-        )
-
-    # No picks
-    if not picks:
-        lines += [
-            "", "<b>⛔ STAY IN CASH TODAY</b>",
-        ]
-        if vix_action == "avoid":
-            lines.append(f"VIX {vix_val} above {22} — danger zone.")
-        else:
-            lines.append("No setups qualify today. Patience is a position.")
-        lines += [f"{'─'*32}", "<i>Not SEBI advice · Your decision</i>"]
-        return "\n".join(lines)
-
-    # VIX avoid with no picks
+    # ── VIX block ──
     if vix_action == "avoid":
-        lines += ["", "<b>⛔ STAY IN CASH — VIX DANGER ZONE</b>",
-                  f"VIX {vix_val} above {22}. No new positions.",
-                  f"{'─'*32}", "<i>Not SEBI advice</i>"]
+        lines.append(
+            "🔴 <b>HIGH VOLATILITY — NO TRADES TODAY</b>\n"
+            "VIX above 22. All picks suppressed.\n"
+            "Stay in cash. Wait for VIX below 18."
+        )
+        lines.append("──────────────────────────────────")
+        lines.append("⚠️  2% risk max  ·  Set SL before entry\n    Not SEBI advice  ·  Your decision")
         return "\n".join(lines)
 
-    # Individual picks — BUY first, then WATCH
-    buy_picks   = [p for p in picks if p.get("conf_label") == "BUY"]
-    watch_picks = [p for p in picks if p.get("conf_label") != "BUY"]
+    if vix_action == "reduce":
+        lines.append("🟡 <b>ELEVATED VIX — SIZES HALVED</b>")
+        lines.append("──────────────────────────────────")
 
-    for p in buy_picks + watch_picks:
-        lines.append(format_pick(p))
+    # ── exits ──
+    if stale_exits:
+        lines.append("<b>EXIT ALERTS — 5-day cap reached</b>")
+        for t in stale_exits:
+            lines.append(f"  ⏹ Exit {t['ticker'].replace('.NS','')} — held {t['days_held']} trading days")
+        lines.append("──────────────────────────────────")
 
-    lines += [
-        f"{'─'*32}",
-        "<i>Paper trading · Not SEBI advice · Your decision</i>",
-    ]
+    # ── trailing SL updates ──
+    if trailing_sls:
+        lines.append("<b>🔼 TRAIL YOUR STOP-LOSS</b>")
+        for sl in trailing_sls:
+            ticker = sl['ticker'].replace('.NS','')
+            lines.append(
+                f"  {ticker} up {sl['gain_pct']}% → "
+                f"Move SL: Rs{sl['old_sl']} → <b>Rs{sl['new_sl']}</b>"
+            )
+            lines.append(f"  <i>{sl['reason']}</i>")
+        lines.append("──────────────────────────────────")
+
+    # ── upgrades ──
+    if upgrades:
+        lines.append("<b>UPGRADE OPPORTUNITY</b>")
+        for u in upgrades:
+            lines.append(
+                f"  🔄 Exit {u['exit_ticker'].replace('.NS','')} "
+                f"(score {u['exit_score']}) → "
+                f"enter {u['enter_ticker'].replace('.NS','')} "
+                f"(score {u['enter_score']}, +{u['score_gap']} pts)"
+            )
+        lines.append("──────────────────────────────────")
+
+    # ── picks ──
+    if picks:
+        lines.append(f"<b>TODAY'S PICKS — {len(picks)} setup(s)</b>")
+        for i, pick in enumerate(picks):
+            if i == 0:
+                lines.append(fmt_top_pick(pick))
+            else:
+                lines.append(fmt_other_pick(pick, i + 1))
+    else:
+        lines.append("<b>No qualifying setups today.</b>")
+        lines.append("Scores below 65 or no regime fit.")
+        lines.append("Stay in cash — better setups coming.")
+
+    # ── footer ──
+    lines.append("\n──────────────────────────────────")
+    lines.append("⚠️  2% risk max  ·  Set SL before entry\n    Not SEBI advice  ·  Your decision")
+
     return "\n".join(lines)
 
 
-# ── Paper trade logger ─────────────────────────────────────
-
-def log_paper_trades(picks, signal_date, paper_trades_path=None):
-    """
-    Log new signals to paper_trades.csv.
-    Skips already_open trades — never double-logs.
-    B12: schema includes all partial exit fields.
-    ID fix: calculate starting ID ONCE before loop, increment in memory.
-    This prevents duplicate IDs when multiple signals fire same night.
-    """
-    path   = paper_trades_path or PAPER_TRADES_FILE
-    exists = os.path.exists(path)
-    new_picks = [p for p in picks if not p.get("already_open", False)]
-    if not new_picks:
-        return
-
-    # Calculate starting ID once — avoids duplicate IDs across multiple picks
-    next_id = _next_paper_id_int(path)
-
-    with open(path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=PAPER_FIELDS, extrasaction="ignore")
-        if not exists:
-            writer.writeheader()
-        for p in new_picks:
-            qty = int(p.get("qty", 0))
-            tid = f"PT-{next_id:03d}"
-            next_id += 1   # increment in memory — not re-reading file
-            writer.writerow({
-                "id":                tid,
-                "date":              signal_date,
-                "ticker":            p.get("ticker", ""),
-                "setup_type":        p.get("setup_type", ""),
-                "conf_label":        p.get("conf_label", "WATCH"),
-                "conf_score":        p.get("conf_score", 0),
-                "entry":             p.get("entry", 0),
-                "sl":                p.get("sl", 0),
-                "target":            p.get("target", 0),
-                "partial_tgt":       p.get("partial_tgt", 0),
-                "rr":                p.get("rr", 0),
-                "qty":               qty,
-                "qty_open":          qty,         # full qty open initially
-                "qty_closed":        0,           # nothing closed yet
-                "capital":           p.get("capital", 0),
-                "hold_days":         p.get("hold_days", 8),
-                "ev_pct":            p.get("ev_pct", 0),
-                "reason":            p.get("reason", ""),
-                "sector":            p.get("sector", ""),
-                "status":            "open",
-                "exit_date":         "",
-                "exit_price":        "",
-                "exit_reason":       "",
-                "partial_exit_price":"",
-                "partial_exit_date": "",
-                "partial_pnl":       "",
-                "pnl":               "",
-                "result":            "",
-                "days_held":         "",
-            })
-            print(f"  Logged: {p.get('name', p.get('ticker',''))} "
-                  f"[{p.get('conf_label','')}] {signal_date}")
-
-
-# ── Main ───────────────────────────────────────────────────
-
-def run(signals=None, paper_trades_path=None, is_reminder=False):
-    """
-    Main entry point. Accepts signals dict (for testing) or reads from file.
-    """
-    now  = datetime.now(IST)
-    mode = "REMINDER" if is_reminder else "ALERT"
-    print(f"\n{'='*52}")
-    print(f"  {mode}  {now.strftime('%d %b %Y  %H:%M IST')}")
-    print(f"{'='*52}\n")
-
-    # Load signals (B20: validated on read)
-    if signals is None:
-        signals = read_signals()
-
-    # Build and send
-    msg = build_alert_message(signals, paper_trades_path)
-    _send_telegram(msg)
-
-    # Log paper trades (only on primary alert, not reminder)
-    if not is_reminder and signals.get("picks"):
-        print("\n  Logging paper trades...")
-        log_paper_trades(
-            signals["picks"],
-            signals.get("date", now.strftime("%Y-%m-%d")),
-            paper_trades_path,
+def send_no_market(reason="Holiday or weekend"):
+    """Send image alert for market closed days."""
+    try:
+        from chart import build_alert_image, build_caption
+        img_bytes = build_alert_image(
+            picks=[], stale_exits=[], trailing_sls=[],
+            deployed=0, available=0,
+            nifty_rsi=None, vix_val=None, vix_label="",
+            vix_action="normal",
+            regime="MARKET CLOSED",
+            regime_desc=str(reason),
         )
-
-    print("\n  Done.")
+        if img_bytes:
+            caption = f"Market closed today - {reason}. See you next trading day."
+            if send_photo(img_bytes, caption):
+                return
+    except Exception as e:
+        print(f"  [send_no_market] Image failed: {e}")
+    # fallback to text
+    today = date.today().strftime("%d %b %Y, %a").upper()
+    send(
+        f"<b>TRADING BOT  -  {today}</b>\n\n"
+        f"Market closed today\n"
+        f"<i>{reason}</i>\n\n"
+        f"See you next trading day."
+    )
 
 
 if __name__ == "__main__":
-    reminder = "--reminder" in sys.argv
-    run(is_reminder=reminder)
+    send("Trading bot — dashboard style upgrade installed. Ready for Monday.")
