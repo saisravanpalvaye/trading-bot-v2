@@ -1,2 +1,1 @@
 id,date,ticker,setup_type,conf_label,entry,exit_date,exit_price,exit_reason,sl,target,qty,capital,pnl,result,days_held
-PT-002,2026-04-10,SUNPHARMA.NS,OVERSOLD_EXHAUSTION,WATCH,1717.10,2026-04-10,1644.32,SL,1644.32,1838.41,17,29191.0,-1237.26,LOSS,0
