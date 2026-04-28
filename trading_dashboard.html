@@ -628,7 +628,7 @@ function posCard(t) {
     </div>
     <div class="pos-row">
       <div class="pos-item">Entry<span>${fmtRs(entry)}</span></div>
-      <div class="pos-item">Live<span>${livePrice} ${pctChange?`(${pctChange>=0?'+':''}${pctChange.toFixed(1)}%)`:''}` </span></div>
+      <div class="pos-item">Live<span>${livePrice} ${pctChange ? '(' + (pctChange>=0?'+':'') + pctChange.toFixed(1) + '%)' : ''}</span></div>
       <div class="pos-item">SL<span class="${isBreakeven?'safe':'r'}">${fmtRs(sl)}${isBreakeven?' 🔒':''}</span></div>
       <div class="pos-item">Target<span class="g">${fmtRs(target)}</span></div>
       <div class="pos-item">Partial<span class="a">${fmtRs(partial)}</span></div>
