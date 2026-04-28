@@ -366,22 +366,64 @@ const MAX_DEPLOYED  = 360000;
 const RAW = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${BRANCH}`;
 
 // ── YAHOO FINANCE PROXY ────────────────────────────────────
-// Uses allorigins.win to bypass CORS — free, no key needed
-function yahooUrl(symbol) {
-  const sym = symbol.replace('.NS', '.NS');
-  return `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
+// Multi-source price fetcher with fallback — improves freshness
+function yahooUrl(symbol, host) {
+  return `https://${host}/v8/finance/chart/${symbol}?interval=1d&range=1d&t=${Date.now()}`;
+}
+
+function parseYahoo(data) {
+  const q = data?.chart?.result?.[0]?.meta;
+  return q && q.regularMarketPrice ? { price: q.regularMarketPrice, prev: q.previousClose } : null;
+}
+
+async function tryDirect(symbol) {
+  // Try query1 and query2 directly (works in some browsers/networks)
+  for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+    try {
+      const r = await fetch(yahooUrl(symbol, host), { signal: AbortSignal.timeout(3000) });
+      if (!r.ok) continue;
+      const data = await r.json();
+      const result = parseYahoo(data);
+      if (result) return result;
+    } catch { continue; }
+  }
+  return null;
+}
+
+async function tryProxy(symbol, proxyUrl) {
+  try {
+    const target = yahooUrl(symbol, 'query1.finance.yahoo.com');
+    const r = await fetch(`${proxyUrl}${encodeURIComponent(target)}`, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const contents = typeof d.contents === 'string' ? JSON.parse(d.contents) : d.contents;
+    return parseYahoo(contents);
+  } catch { return null; }
 }
 
 async function fetchPrice(symbol) {
+  // 1. Try direct Yahoo Finance (fastest, no cache)
+  const direct = await tryDirect(symbol);
+  if (direct) return direct;
+
+  // 2. Try allorigins.win proxy
+  const ao = await tryProxy(symbol, 'https://api.allorigins.win/get?url=');
+  if (ao) return ao;
+
+  // 3. Try corsproxy.io as last resort
   try {
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl(symbol))}`;
-    const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) return null;
-    const d = await r.json();
-    const data = JSON.parse(d.contents);
-    const q = data?.chart?.result?.[0]?.meta;
-    return q ? { price: q.regularMarketPrice, prev: q.previousClose } : null;
-  } catch { return null; }
+    const r = await fetch(
+      `https://corsproxy.io/?${encodeURIComponent(yahooUrl(symbol, 'query1.finance.yahoo.com'))}`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (r.ok) {
+      const data = await r.json();
+      const result = parseYahoo(data);
+      if (result) return result;
+    }
+  } catch {}
+
+  return null;
 }
 
 // ── CSV PARSER ─────────────────────────────────────────────
