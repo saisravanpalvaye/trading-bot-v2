@@ -492,8 +492,10 @@ async function loadAll() {
     renderSectors();
 
     // Fetch live prices for open positions
+    // EXCLUDED: tickers with active corporate actions (demerger/split) that corrupt Yahoo Finance data
+    const PRICE_EXCLUDED = ['VEDL.NS']; // VEDL demerger record date May 1 2026 — remove after May 2
     const open = state.trades.filter(t => t.status === 'open' || t.status === 'partial');
-    const tickers = [...new Set(open.map(t => t.ticker))];
+    const tickers = [...new Set(open.map(t => t.ticker))].filter(t => !PRICE_EXCLUDED.includes(t));
     await fetchLivePrices(tickers);
 
     renderMetrics();
