@@ -382,8 +382,16 @@ def monitor_and_close(paper_trades_path=None, trade_log_path=None):
 
     print(f"  Checking {len(open_trades)} open trades...")
 
+    # Tickers excluded from price fetch due to corporate actions
+    # VEDL: demerger record date May 1 2026 — Yahoo Finance returns wrong adjusted price
+    # Remove VEDL.NS from this list after May 5 2026
+    PRICE_EXCLUDED = {"VEDL.NS"}
+
     for trade in open_trades:
         ticker = trade["ticker"]
+        if ticker in PRICE_EXCLUDED:
+            print(f"  {ticker} excluded from price fetch (corporate action) — skipping")
+            continue
         price  = _fetch_price(ticker)
         if price is None:
             print(f"  Could not fetch {ticker} — skipping")
