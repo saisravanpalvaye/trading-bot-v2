@@ -371,7 +371,12 @@ def log_paper_trades(picks, signal_date, paper_trades_path=None):
         return
 
     # Calculate starting ID once — avoids duplicate IDs across multiple picks
-    next_id = _next_paper_id_int(path)
+    # Extract integer from "PT-XXX" string returned by _next_paper_id_int
+    _raw_id = _next_paper_id_int(path)
+    try:
+        next_id = int(_raw_id.replace("PT-", "")) if isinstance(_raw_id, str) else int(_raw_id)
+    except Exception:
+        next_id = 1
 
     with open(path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=PAPER_FIELDS, extrasaction="ignore")
