@@ -1,12 +1,12 @@
 {
-  "date": "2026-06-03",
-  "generated_at": "23:44 IST",
+  "date": "2026-06-04",
+  "generated_at": "00:05 IST",
   "market_open": true,
   "regime": "BEARISH",
   "regime_desc": "Downtrend \u2014 defensive only",
-  "nifty_rsi": 41.8,
+  "nifty_rsi": 41.4,
   "nifty_adx": 24.9,
-  "vix": 15.4,
+  "vix": 16.3,
   "vix_action": "normal",
   "floor_hit": false,
   "consec_losses": 0,
@@ -40,7 +40,7 @@
         "weekly_score": 2
       },
       "reason": "RSI 35 turning up from oversold \u00b7 volume drying",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": false
     }
