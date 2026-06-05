@@ -378,6 +378,33 @@ def log_paper_trades(picks, signal_date, paper_trades_path=None):
     except Exception:
         next_id = 1
 
+    # ── CAPITAL GATE (60% of capital = MAX_DEPLOYED) ─────────
+    # Sort by score so best picks get priority when cap is tight.
+    # Max 2 trades per sector per day to prevent concentration.
+    new_picks.sort(key=lambda p: int(p.get("conf_score", 0)), reverse=True)
+    open_cap   = _open_trades_capital(path)
+    remaining  = MAX_DEPLOYED - open_cap
+    sector_count = {}
+    gated = []
+    for p in new_picks:
+        cap    = float(p.get("capital", 0))
+        sector = p.get("sector", "UNKNOWN")
+        if cap > remaining:
+            print(f"  BLOCKED (cap): {p.get('ticker','')} Rs{cap:,.0f} > Rs{remaining:,.0f} free")
+            continue
+        if sector_count.get(sector, 0) >= 2:
+            print(f"  BLOCKED (sector {sector} already 2): {p.get('ticker','')}")
+            continue
+        gated.append(p)
+        remaining -= cap
+        sector_count[sector] = sector_count.get(sector, 0) + 1
+        print(f"  APPROVED: {p.get('ticker','')} Rs{cap:,.0f} (Rs{remaining:,.0f} left)")
+    new_picks = gated
+
+    if not new_picks:
+        print("  No picks approved — capital or sector limit reached.")
+        return
+
     with open(path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=PAPER_FIELDS, extrasaction="ignore")
         if not exists:
