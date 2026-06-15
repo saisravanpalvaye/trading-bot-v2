@@ -1,12 +1,12 @@
 {
-  "date": "2026-06-15",
-  "generated_at": "21:33 IST",
+  "date": "2026-06-16",
+  "generated_at": "00:20 IST",
   "market_open": true,
   "regime": "NEUTRAL",
   "regime_desc": "Mixed signals \u2014 selective trades",
-  "nifty_rsi": 52.6,
-  "nifty_adx": 31.8,
-  "vix": 14.7,
+  "nifty_rsi": 47.7,
+  "nifty_adx": 31.9,
+  "vix": 14.3,
   "vix_action": "normal",
   "floor_hit": false,
   "consec_losses": 2,
@@ -98,7 +98,7 @@
       "rvol": 0.95,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 64.0,
+        "weekly_rsi": 63.9,
         "weekly_adx": 41.2,
         "rsi_pullback": 6.8,
         "weekly_score": 3
@@ -130,7 +130,7 @@
       "rvol": 1.48,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 54.3,
+        "weekly_rsi": 54.2,
         "weekly_adx": 27.0,
         "rsi_pullback": 7.0,
         "weekly_score": 3
@@ -162,7 +162,7 @@
       "rvol": 0.55,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 65.7,
+        "weekly_rsi": 65.6,
         "weekly_adx": 52.1,
         "rsi_pullback": 10.0,
         "weekly_score": 3
@@ -226,7 +226,7 @@
       "rvol": 0.65,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 30.9,
+        "weekly_rsi": 31.0,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 4
