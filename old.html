@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Bot Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0A1628;
+  --navy2: #0E1F3D;
+  --navy3: #152847;
+  --accent: #00D4FF;
+  --accent2: #00FF9F;
+  --amber: #FFB800;
+  --red: #FF4D4D;
+  --green: #00C470;
+  --muted: #4A6080;
+  --text: #E8F0FE;
+  --text2: #7A9CC0;
+  --border: rgba(0,212,255,0.12);
+  --card: rgba(14,31,61,0.8);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--navy);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: radial-gradient(ellipse 80% 60% at 10% 20%, rgba(0,212,255,0.06) 0%, transparent 60%),
+              radial-gradient(ellipse 60% 40% at 90% 80%, rgba(0,255,159,0.04) 0%, transparent 50%);
+  pointer-events:none;
+}
+
+/* Header */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  position: sticky; top:0; z-index:100;
+  background: rgba(10,22,40,0.9);
+}
+.logo {
+  font-size: 18px; font-weight: 800; letter-spacing: 0.05em;
+  color: var(--text);
+}
+.logo span { color: var(--accent); }
+.status-pill {
+  display:flex; align-items:center; gap:8px;
+  background: rgba(0,196,112,0.1);
+  border: 1px solid rgba(0,196,112,0.3);
+  border-radius: 20px; padding: 6px 14px;
+  font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  color: var(--green);
+}
+.status-dot {
+  width:7px; height:7px; border-radius:50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.last-update {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--text2);
+}
+
+/* Grid */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  padding: 24px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Stat bar */
+.stat-bar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  backdrop-filter: blur(8px);
+}
+.stat-label {
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+  color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 26px; font-weight: 800;
+  line-height: 1;
+}
+.stat-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.green { color: var(--green); }
+.red   { color: var(--red); }
+.amber { color: var(--amber); }
+.accent { color: var(--accent); }
+
+/* Cards */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+.card-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text2);
+}
+.card-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; padding: 3px 10px;
+  border-radius: 10px;
+}
+.badge-blue { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.2); }
+.badge-green { background: rgba(0,196,112,0.1); color: var(--green); border: 1px solid rgba(0,196,112,0.2); }
+.badge-amber { background: rgba(255,184,0,0.1); color: var(--amber); border: 1px solid rgba(255,184,0,0.2); }
+.badge-red { background: rgba(255,77,77,0.1); color: var(--red); border: 1px solid rgba(255,77,77,0.2); }
+
+/* Regime bar */
+.regime-bar {
+  grid-column: 1 / -1;
+  border-radius: 12px;
+  padding: 14px 24px;
+  display:flex; align-items:center; justify-content:space-between;
+  border: 1px solid;
+}
+.regime-bar.high-vix {
+  background: rgba(255,184,0,0.08);
+  border-color: rgba(255,184,0,0.25);
+}
+.regime-bar.bullish {
+  background: rgba(0,196,112,0.08);
+  border-color: rgba(0,196,112,0.25);
+}
+.regime-bar.bearish {
+  background: rgba(255,77,77,0.08);
+  border-color: rgba(255,77,77,0.25);
+}
+.regime-bar.neutral {
+  background: rgba(0,212,255,0.05);
+  border-color: rgba(0,212,255,0.15);
+}
+.regime-label {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+}
+.regime-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; color: var(--text2);
+  display:flex; gap: 24px;
+}
+.regime-desc { font-size: 12px; color: var(--text2); }
+
+/* Trade table */
+.trade-table { width:100%; }
+.trade-row {
+  display:grid;
+  grid-template-columns: 80px 110px 80px 80px 80px 70px 70px;
+  gap: 8px;
+  align-items:center;
+  padding: 11px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.trade-row:hover { background: rgba(0,212,255,0.03); }
+.trade-row.header {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--text2);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+}
+.trade-row.header:hover { background: transparent; }
+.ticker-cell {
+  font-weight: 700; font-size: 13px;
+  color: var(--text);
+}
+.setup-pill {
+  font-size: 9px; font-family: 'JetBrains Mono', monospace;
+  padding: 2px 7px; border-radius: 6px;
+  background: rgba(0,212,255,0.1);
+  color: var(--accent);
+  border: 1px solid rgba(0,212,255,0.2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.setup-pill.oversold {
+  background: rgba(0,196,112,0.1); color: var(--green);
+  border-color: rgba(0,196,112,0.2);
+}
+.setup-pill.divergence {
+  background: rgba(138,99,210,0.15); color: #B088F0;
+  border-color: rgba(138,99,210,0.25);
+}
+.mono { font-family: 'JetBrains Mono', monospace; }
+.status-badge {
+  font-size: 9px; font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px; border-radius: 6px; text-align: center;
+}
+.s-open    { background: rgba(0,212,255,0.12); color: var(--accent); }
+.s-target  { background: rgba(0,196,112,0.12); color: var(--green); }
+.s-stopped { background: rgba(255,77,77,0.12);  color: var(--red); }
+.s-watch   { background: rgba(255,184,0,0.12);  color: var(--amber); }
+.s-expired { background: rgba(100,100,120,0.2); color: var(--muted); }
+
+/* Pick cards (tomorrow) */
+.picks-grid { padding: 16px; display:flex; flex-direction:column; gap: 10px; }
+.pick-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.pick-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.pick-ticker { font-size: 16px; font-weight: 800; }
+.pick-score {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--text2);
+}
+.pick-prices {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.price-cell {
+  border-radius: 8px; padding: 8px 10px; text-align: center;
+}
+.price-cell.entry  { background: rgba(255,255,255,0.05); }
+.price-cell.target { background: rgba(0,196,112,0.1); }
+.price-cell.stop   { background: rgba(255,77,77,0.1); }
+.price-label { font-size: 9px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+.price-val { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; }
+.price-pct { font-size: 9px; margin-top: 1px; }
+
+.pick-meta {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top: 10px;
+}
+.action-btn {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 4px 12px; border-radius: 6px;
+}
+.a-strong-buy { background: rgba(0,196,112,0.2); color: var(--green); border: 1px solid rgba(0,196,112,0.4); }
+.a-buy  { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.25); }
+.a-watch{ background: rgba(255,184,0,0.1); color: var(--amber); border: 1px solid rgba(255,184,0,0.25); }
+
+.no-picks {
+  text-align:center; padding: 40px 20px;
+  color: var(--text2); font-size: 13px;
+}
+.no-picks .icon { font-size: 32px; margin-bottom: 12px; }
+
+/* Countdown */
+.countdown {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--accent);
+  background: rgba(0,212,255,0.08);
+  border: 1px solid rgba(0,212,255,0.15);
+  border-radius: 8px; padding: 4px 10px;
+}
+
+/* Empty state */
+.empty { padding: 40px; text-align:center; color: var(--text2); font-size:13px; line-height:1.8; }
+
+/* Scrollable */
+.scroll-body { max-height: 420px; overflow-y: auto; }
+.scroll-body::-webkit-scrollbar { width:4px; }
+.scroll-body::-webkit-scrollbar-track { background: transparent; }
+.scroll-body::-webkit-scrollbar-thumb { background: var(--border); border-radius:2px; }
+
+/* Github config notice */
+.config-notice {
+  grid-column: 1/-1;
+  background: rgba(255,184,0,0.06);
+  border: 1px solid rgba(255,184,0,0.2);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-size: 12px; color: var(--amber);
+  font-family: 'JetBrains Mono', monospace;
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TRADING<span>BOT</span> · NSE</div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span id="status-text">LOADING</span>
+    </div>
+    <div class="last-update" id="last-update">--</div>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- Config notice -->
+  <div class="config-notice" id="config-notice">
+    ⚠ Set your GitHub raw URL below to load live data from trade_log.csv
+  </div>
+
+  <!-- Stat bar -->
+  <div class="stat-bar">
+    <div class="stat">
+      <div class="stat-label">Total Signals</div>
+      <div class="stat-value accent" id="stat-total">—</div>
+      <div class="stat-sub" id="stat-period">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Win Rate</div>
+      <div class="stat-value green" id="stat-wr">—</div>
+      <div class="stat-sub" id="stat-wr-sub">closed trades</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total P&L</div>
+      <div class="stat-value" id="stat-pnl">—</div>
+      <div class="stat-sub" id="stat-pnl-sub">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Open Trades</div>
+      <div class="stat-value accent" id="stat-open">—</div>
+      <div class="stat-sub" id="stat-deployed">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Avg R:R</div>
+      <div class="stat-value amber" id="stat-rr">—</div>
+      <div class="stat-sub">target / risk</div>
+    </div>
+  </div>
+
+  <!-- Regime bar -->
+  <div class="regime-bar neutral" id="regime-bar">
+    <div>
+      <div class="regime-label" id="regime-label">Loading regime...</div>
+      <div class="regime-desc" id="regime-desc">Fetching latest data</div>
+    </div>
+    <div class="regime-meta">
+      <span>RSI <span id="regime-rsi">--</span></span>
+      <span>VIX <span id="regime-vix">--</span></span>
+      <span id="regime-capital">--</span>
+    </div>
+  </div>
+
+  <!-- Previous trades -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Previous Trades</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="card-badge badge-blue" id="trades-count">— trades</span>
+      </div>
+    </div>
+    <div class="trade-row header">
+      <span>Ticker</span>
+      <span>Setup</span>
+      <span>Entry</span>
+      <span>Target</span>
+      <span>SL</span>
+      <span>Status</span>
+      <span>P&L</span>
+    </div>
+    <div class="scroll-body" id="trades-body">
+      <div class="empty">Loading trade history...</div>
+    </div>
+  </div>
+
+  <!-- Tomorrow's picks -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Tonight's Picks</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="countdown" id="market-countdown">Market in --</div>
+        <span class="card-badge badge-green" id="picks-count">— picks</span>
+      </div>
+    </div>
+    <div class="picks-grid" id="picks-body">
+      <div class="no-picks">
+        <div class="icon">📡</div>
+        Loading tonight's picks...
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Config panel (bottom) -->
+<div style="padding:0 32px 32px;max-width:1400px;margin:0 auto;">
+  <div style="background:rgba(14,31,61,0.6);border:1px solid var(--border);border-radius:12px;padding:16px 20px;">
+    <div style="font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:8px;">
+      GITHUB RAW URL — trade_log.csv (set once, auto-refreshes every 5 min)
+    </div>
+    <div style="display:flex;gap:10px;">
+      <input id="csv-url" type="text" placeholder="https://raw.githubusercontent.com/saisravanpalvaye/trading-bot/main/trade_log.csv"
+        style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;
+               padding:10px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;">
+      <button onclick="loadData()" style="background:var(--accent);color:var(--navy);border:none;border-radius:8px;
+              padding:10px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">
+        LOAD
+      </button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:'JetBrains Mono',monospace;">
+      Tip: make sure your repo is public, or use a personal access token in the URL
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────
+const DEFAULT_URL = 'https://raw.githubusercontent.com/saisravanpalvaye/trading-bot/main/trade_log.csv';
+let csvUrl = localStorage.getItem('tradingbot_csv_url') || DEFAULT_URL;
+let refreshTimer = null;
+
+// ── Init ───────────────────────────────────────────────────
+window.onload = () => {
+  document.getElementById('csv-url').value = csvUrl;
+  startCountdown();
+  loadData();
+  setInterval(loadData, 5 * 60 * 1000);
+};
+
+// ── Load data ──────────────────────────────────────────────
+async function loadData() {
+  const url = document.getElementById('csv-url').value.trim() || csvUrl;
+  localStorage.setItem('tradingbot_csv_url', url);
+  csvUrl = url;
+
+  document.getElementById('status-text').textContent = 'SYNCING';
+  try {
+    const res = await fetch(url + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const trades = parseCSV(text);
+    render(trades);
+    document.getElementById('status-text').textContent = 'LIVE';
+    document.getElementById('last-update').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'}) + ' IST';
+  } catch(e) {
+    document.getElementById('status-text').textContent = 'OFFLINE';
+    renderEmpty(e.message);
+  }
+}
+
+// ── Parse CSV ──────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g,'_'));
+  return lines.slice(1).map(line => {
+    const vals = line.split(',');
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = (vals[i]||'').trim());
+    return obj;
+  }).filter(r => r.ticker || r.symbol);
+}
+
+// ── Render ─────────────────────────────────────────────────
+function render(trades) {
+  // Separate: tonight's picks = alerted today, previous = everything else
+  const today = new Date().toISOString().slice(0,10);
+  const todayPicks = trades.filter(t =>
+    (t.date||t.signal_date||'').startsWith(today) &&
+    (t.status||'').toLowerCase() !== 'closed');
+  const history = trades.filter(t => !todayPicks.includes(t));
+
+  renderStats(trades);
+  renderRegime(trades);
+  renderHistory(history);
+  renderPicks(todayPicks, trades);
+}
+
+function renderStats(trades) {
+  const closed = trades.filter(t => (t.status||'').toLowerCase() === 'closed');
+  const open   = trades.filter(t => ['open','alerted'].includes((t.status||'').toLowerCase()));
+  const wins   = closed.filter(t => parseFloat(t.pnl||t.profit||0) > 0);
+  const wr     = closed.length ? Math.round(wins.length/closed.length*100) : null;
+  const totalPnl = closed.reduce((s,t) => s + parseFloat(t.pnl||t.profit||0), 0);
+  const rrs    = trades.map(t => parseFloat(t.rr||t.r_r||0)).filter(r => r > 0);
+  const avgRR  = rrs.length ? (rrs.reduce((a,b)=>a+b,0)/rrs.length).toFixed(2) : '—';
+  const deployed = open.reduce((s,t) => s + parseFloat(t.capital||t.invested||0), 0);
+
+  document.getElementById('stat-total').textContent = trades.length || '0';
+  document.getElementById('stat-period').textContent = trades.length + ' signals logged';
+  document.getElementById('stat-wr').textContent = wr !== null ? wr+'%' : '—';
+  document.getElementById('stat-wr-sub').textContent = closed.length + ' closed trades';
+
+  const pnlEl = document.getElementById('stat-pnl');
+  pnlEl.textContent = totalPnl ? 'Rs' + Math.round(totalPnl).toLocaleString('en-IN') : '—';
+  pnlEl.className = 'stat-value ' + (totalPnl > 0 ? 'green' : totalPnl < 0 ? 'red' : '');
+
+  document.getElementById('stat-open').textContent = open.length;
+  document.getElementById('stat-deployed').textContent =
+    deployed ? 'Rs' + Math.round(deployed).toLocaleString('en-IN') + ' deployed' : 'no open trades';
+  document.getElementById('stat-rr').textContent = avgRR !== '—' ? '1:'+avgRR : '—';
+}
+
+function renderRegime(trades) {
+  // Use latest trade for regime
+  const latest = [...trades].reverse().find(t => t.regime || t.vix || t.nifty_rsi);
+  const bar = document.getElementById('regime-bar');
+  const regime = (latest?.regime || 'UNKNOWN').toUpperCase().replace(/_/g,' ');
+  const desc = latest?.regime_desc || latest?.regime || 'Awaiting next run';
+
+  bar.className = 'regime-bar ' +
+    (regime.includes('HIGH VIX') ? 'high-vix' :
+     regime.includes('BULL') ? 'bullish' :
+     regime.includes('BEAR') ? 'bearish' : 'neutral');
+
+  document.getElementById('regime-label').textContent = regime;
+  document.getElementById('regime-desc').textContent = desc;
+  document.getElementById('regime-rsi').textContent = latest?.nifty_rsi || '--';
+  document.getElementById('regime-vix').textContent = latest?.vix || '--';
+
+  const capital = 600000;
+  const open = trades.filter(t => ['open','alerted'].includes((t.status||'').toLowerCase()));
+  const deployed = open.reduce((s,t) => s + parseFloat(t.capital||0), 0);
+  document.getElementById('regime-capital').textContent =
+    'Rs' + Math.round(capital - deployed).toLocaleString('en-IN') + ' free';
+}
+
+function renderHistory(trades) {
+  const sorted = [...trades].sort((a,b) =>
+    new Date(b.date||b.signal_date||0) - new Date(a.date||a.signal_date||0));
+
+  document.getElementById('trades-count').textContent = sorted.length + ' trades';
+
+  if (!sorted.length) {
+    document.getElementById('trades-body').innerHTML =
+      '<div class="empty">No previous trades yet.<br>Signals will appear here after the bot runs.</div>';
+    return;
+  }
+
+  document.getElementById('trades-body').innerHTML = sorted.map(t => {
+    const status = (t.status||'alerted').toLowerCase();
+    const pnl = parseFloat(t.pnl||t.profit||0);
+    const ticker = (t.ticker||t.symbol||'?').replace('.NS','');
+    const setup = (t.opp_type||t.setup_type||t.setup||'TREND').replace(/_/g,' ');
+    const isOversold = setup.includes('OVERSOLD');
+    const isDivergence = setup.includes('DIV');
+
+    const statusMap = {
+      'open':'<span class="status-badge s-open">OPEN</span>',
+      'alerted':'<span class="status-badge s-watch">ALERTED</span>',
+      'closed': pnl > 0
+        ? '<span class="status-badge s-target">TARGET</span>'
+        : '<span class="status-badge s-stopped">STOPPED</span>',
+      'expired':'<span class="status-badge s-expired">EXPIRED</span>',
+    };
+
+    const pnlStr = pnl
+      ? `<span class="${pnl>0?'green':'red'}">Rs${Math.abs(Math.round(pnl)).toLocaleString('en-IN')}</span>`
+      : '<span style="color:var(--muted)">—</span>';
+
+    const setupClass = isOversold ? 'oversold' : isDivergence ? 'divergence' : '';
+
+    return `<div class="trade-row">
+      <span class="ticker-cell">${ticker}</span>
+      <span class="setup-pill ${setupClass}">${setup.substring(0,12)}</span>
+      <span class="mono" style="font-size:11px">Rs${parseFloat(t.entry||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+      <span class="mono green" style="font-size:11px">Rs${parseFloat(t.target||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+      <span class="mono red" style="font-size:11px">Rs${parseFloat(t.sl||t.stop_loss||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+      ${statusMap[status] || statusMap['alerted']}
+      ${pnlStr}
+    </div>`;
+  }).join('');
+}
+
+function renderPicks(picks, allTrades) {
+  document.getElementById('picks-count').textContent = picks.length + ' picks';
+
+  if (!picks.length) {
+    // Show last run's picks as "recent"
+    const recent = [...allTrades]
+      .sort((a,b) => new Date(b.date||b.signal_date||0) - new Date(a.date||a.signal_date||0))
+      .slice(0, 3);
+
+    if (!recent.length) {
+      document.getElementById('picks-body').innerHTML = `
+        <div class="no-picks">
+          <div class="icon">🌙</div>
+          Bot runs at midnight IST<br>
+          <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--accent)">
+            Tonight's picks will appear here
+          </span>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('picks-count').textContent = 'latest';
+    document.getElementById('picks-body').innerHTML =
+      '<div style="padding:8px 16px 4px;font-size:10px;color:var(--text2);font-family:\'JetBrains Mono\',monospace;letter-spacing:0.08em;">MOST RECENT SIGNALS</div>' +
+      recent.map(t => pickCard(t)).join('');
+    return;
+  }
+
+  document.getElementById('picks-body').innerHTML = picks.map(t => pickCard(t)).join('');
+}
+
+function pickCard(t) {
+  const ticker = (t.ticker||t.symbol||'?').replace('.NS','');
+  const entry  = parseFloat(t.entry||0);
+  const target = parseFloat(t.target||0);
+  const sl     = parseFloat(t.sl||t.stop_loss||0);
+  const tgtPct = entry ? ((target-entry)/entry*100).toFixed(1) : 0;
+  const slPct  = entry ? ((entry-sl)/entry*100).toFixed(1) : 0;
+  const action = (t.action||'BUY').toUpperCase();
+  const setup  = (t.opp_type||t.setup_type||t.setup||'TREND FOLLOW').replace(/_/g,' ');
+  const score  = t.score || '—';
+  const hold   = t.hold_days ? t.hold_days + 'd' : '—';
+
+  const actionClass = action.includes('STRONG') ? 'a-strong-buy' : action.includes('WATCH') ? 'a-watch' : 'a-buy';
+
+  return `<div class="pick-card">
+    <div class="pick-top">
+      <div>
+        <div class="pick-ticker">${ticker}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px;">${setup} · Hold ${hold}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="pick-score">${score}/100</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px;">${t.date||t.signal_date||''}</div>
+      </div>
+    </div>
+    <div class="pick-prices">
+      <div class="price-cell entry">
+        <div class="price-label">Entry</div>
+        <div class="price-val">Rs${entry.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+      </div>
+      <div class="price-cell target">
+        <div class="price-label">Target</div>
+        <div class="price-val green">Rs${target.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+        <div class="price-pct green">+${tgtPct}%</div>
+      </div>
+      <div class="price-cell stop">
+        <div class="price-label">Stop</div>
+        <div class="price-val red">Rs${sl.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+        <div class="price-pct red">-${slPct}%</div>
+      </div>
+    </div>
+    <div class="pick-meta">
+      <span style="font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;">
+        R:R 1:${t.rr||t.r_r||'1.67'} · ${t.qty||'—'} shares · Rs${parseFloat(t.capital||0).toLocaleString('en-IN',{maximumFractionDigits:0})}
+      </span>
+      <span class="action-btn ${actionClass}">${action}</span>
+    </div>
+  </div>`;
+}
+
+function renderEmpty(err) {
+  const msg = `<div class="empty">Could not load data.<br><span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--red)">${err}</span><br><br>Make sure the GitHub repo is public and the URL is correct.</div>`;
+  document.getElementById('trades-body').innerHTML = msg;
+  document.getElementById('picks-body').innerHTML = `<div class="no-picks"><div class="icon">⚠️</div>${err}</div>`;
+}
+
+// ── Market countdown ───────────────────────────────────────
+function startCountdown() {
+  function update() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Kolkata'}));
+    const open = new Date(ist);
+    open.setHours(9, 15, 0, 0);
+    if (ist >= open) open.setDate(open.getDate() + 1);
+    // Skip weekends
+    while ([0,6].includes(open.getDay())) open.setDate(open.getDate()+1);
+
+    const diff = open - ist;
+    const h = Math.floor(diff/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    document.getElementById('market-countdown').textContent =
+      `Open in ${h}h ${m}m`;
+  }
+  update();
+  setInterval(update, 60000);
+}
+</script>
+</body>
+</html>

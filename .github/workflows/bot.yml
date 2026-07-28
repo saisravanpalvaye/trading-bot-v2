@@ -54,12 +54,20 @@ jobs:
       - name: Run alert (read signals.json + send Telegram + log paper trades)
         run: python alert.py
 
+      - name: Guard — refuse to proceed if closed-trade history changed
+        run: python verify_closed_trades.py
+
       - name: Commit signals.json and paper_trades.csv
         run: |
           git config user.name  "Trading Bot"
           git config user.email "bot@trading-bot-v2"
           git add signals.json paper_trades.csv
           git diff --cached --quiet || git commit -m "bot: signals $(date -u '+%Y-%m-%d %H:%M')"
+          # Pull any commits made by a concurrent job (scoreboard/dev push)
+          # before pushing, to prevent the merge-conflict corruption of
+          # 2026-06-05. --autostash protects any uncommitted work; there
+          # should be none at this point, but it costs nothing to be safe.
+          git pull --rebase --autostash origin main
           git push
 
   # ── Job 2: Scoreboard — 3:35 PM IST ──────────────────────────
@@ -87,6 +95,9 @@ jobs:
       - name: Run scoreboard (close trades + send Telegram + write trade_log)
         run: python scoreboard.py
 
+      - name: Guard — refuse to proceed if closed-trade history changed
+        run: python verify_closed_trades.py
+
       - name: Commit paper_trades.csv and trade_log.csv
         run: |
           git config user.name  "Trading Bot"
@@ -95,6 +106,11 @@ jobs:
           touch trade_log.csv
           git add trade_log.csv
           git diff --cached --quiet || git commit -m "scoreboard: update $(date -u '+%Y-%m-%d %H:%M')"
+          # Pull any commits made by a concurrent job (brain/dev push)
+          # before pushing, to prevent the merge-conflict corruption of
+          # 2026-06-05. --autostash protects any uncommitted work; there
+          # should be none at this point, but it costs nothing to be safe.
+          git pull --rebase --autostash origin main
           git push
 
   # ── Job 3: Morning reminder — 8:00 AM IST ─────────────────────
