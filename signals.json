@@ -1,10 +1,10 @@
 {
   "date": "2026-08-28",
-  "generated_at": "21:28 IST",
+  "generated_at": "05:21 IST",
   "market_open": false,
-  "reason": "Tomorrow 2026-08-27 is NSE Holiday",
+  "reason": "Tomorrow 2026-08-29 is weekend",
   "regime": "CLOSED",
-  "regime_desc": "Tomorrow 2026-08-27 is NSE Holiday",
+  "regime_desc": "Tomorrow 2026-08-29 is weekend",
   "nifty_rsi": null,
   "nifty_adx": null,
   "vix": null,
