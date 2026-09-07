@@ -1,12 +1,12 @@
 {
-  "date": "2026-09-07",
-  "generated_at": "22:43 IST",
+  "date": "2026-09-08",
+  "generated_at": "00:19 IST",
   "market_open": true,
   "regime": "BEARISH",
   "regime_desc": "Downtrend \u2014 defensive only",
-  "nifty_rsi": 39.2,
+  "nifty_rsi": 38.8,
   "nifty_adx": 41.4,
-  "vix": 10.8,
+  "vix": 11.3,
   "vix_action": "normal",
   "floor_hit": false,
   "consec_losses": 0,
@@ -34,7 +34,7 @@
       "rvol": 0.68,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 30.6,
+        "weekly_rsi": 30.5,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 4
@@ -66,7 +66,7 @@
       "rvol": 1.87,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 33.7,
+        "weekly_rsi": 33.6,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 3
