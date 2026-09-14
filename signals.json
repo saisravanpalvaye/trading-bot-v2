@@ -1,10 +1,10 @@
 {
-  "date": "2026-09-14",
-  "generated_at": "23:01 IST",
+  "date": "2026-09-15",
+  "generated_at": "01:02 IST",
   "market_open": true,
   "regime": "OVERSOLD",
   "regime_desc": "Bounce zone \u2014 selective buys",
-  "nifty_rsi": 25.5,
+  "nifty_rsi": 28.8,
   "nifty_adx": 56.0,
   "vix": 12.3,
   "vix_action": "normal",
@@ -34,13 +34,13 @@
       "rvol": 0.79,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 29.7,
+        "weekly_rsi": 29.8,
         "vol_dry": false,
         "near_52w_low": true,
         "weekly_score": 3
       },
       "reason": "RSI 36 turning up from oversold \u00b7 volume drying",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     },
@@ -72,7 +72,7 @@
         "weekly_score": 3
       },
       "reason": "RSI 54 pulling back to EMA20 \u00b7 ADX structural",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     },
@@ -98,13 +98,13 @@
       "rvol": 0.83,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 60.6,
+        "weekly_rsi": 60.7,
         "weekly_adx": 40.6,
         "rsi_pullback": 6.5,
         "weekly_score": 3
       },
       "reason": "RSI 54 pulling back to EMA20 \u00b7 ADX structural",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     },
@@ -136,7 +136,7 @@
         "weekly_score": 3
       },
       "reason": "RSI 33 turning up from oversold \u00b7 volume drying",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": false
     },
@@ -162,13 +162,13 @@
       "rvol": 1.16,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 33.3,
+        "weekly_rsi": 33.2,
         "vol_dry": false,
         "near_52w_low": true,
         "weekly_score": 2
       },
       "reason": "RSI 44 turning up from oversold \u00b7 volume drying",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": false
     }
