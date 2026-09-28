@@ -1,12 +1,12 @@
 {
-  "date": "2026-09-28",
-  "generated_at": "00:05 IST",
+  "date": "2026-09-29",
+  "generated_at": "02:10 IST",
   "market_open": true,
   "regime": "OVERSOLD",
   "regime_desc": "Bounce zone \u2014 selective buys",
-  "nifty_rsi": 33.6,
+  "nifty_rsi": 31.7,
   "nifty_adx": 39.0,
-  "vix": 12.2,
+  "vix": 13.7,
   "vix_action": "normal",
   "floor_hit": false,
   "consec_losses": 0,
@@ -39,7 +39,7 @@
         "weekly_score": 3
       },
       "reason": "RSI divergence \u2014 price at low, RSI 50 above recent low",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     },
@@ -65,7 +65,7 @@
       "rvol": 0.4,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 36.9,
+        "weekly_rsi": 37.0,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 3
@@ -97,9 +97,9 @@
       "rvol": 1.33,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 52.3,
+        "weekly_rsi": 52.4,
         "weekly_adx": 26.0,
-        "rsi_pullback": 9.2,
+        "rsi_pullback": 9.3,
         "weekly_score": 3
       },
       "reason": "RSI 56 pulling back to EMA20 \u00b7 ADX structural",
@@ -129,7 +129,7 @@
       "rvol": 0.73,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 35.0,
+        "weekly_rsi": 35.1,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 3
@@ -161,7 +161,7 @@
       "rvol": 1.11,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 37.0,
+        "weekly_rsi": 37.1,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 3
@@ -193,9 +193,9 @@
       "rvol": 1.25,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 64.7,
+        "weekly_rsi": 64.8,
         "weekly_adx": 38.9,
-        "rsi_pullback": 9.9,
+        "rsi_pullback": 10.0,
         "weekly_score": 3
       },
       "reason": "RSI 56 pulling back to EMA20 \u00b7 ADX structural",
@@ -353,9 +353,9 @@
       "rvol": 0.65,
       "weekly_info": {
         "setup": "TREND_PULLBACK",
-        "weekly_rsi": 65.4,
+        "weekly_rsi": 65.5,
         "weekly_adx": 51.7,
-        "rsi_pullback": 10.0,
+        "rsi_pullback": 10.1,
         "weekly_score": 3
       },
       "reason": "RSI 56 pulling back to EMA20 \u00b7 ADX structural",
