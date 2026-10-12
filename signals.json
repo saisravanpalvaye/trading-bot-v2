@@ -1,15 +1,15 @@
 {
-  "date": "2026-10-12",
-  "generated_at": "00:36 IST",
+  "date": "2026-10-13",
+  "generated_at": "03:42 IST",
   "market_open": true,
   "regime": "BEARISH",
   "regime_desc": "Downtrend \u2014 defensive only",
-  "nifty_rsi": 37.6,
-  "nifty_adx": 55.9,
-  "vix": 14.4,
+  "nifty_rsi": 36.0,
+  "nifty_adx": 56.0,
+  "vix": 15.2,
   "vix_action": "normal",
   "floor_hit": false,
-  "consec_losses": 3,
+  "consec_losses": 5,
   "size_multiplier": 0.5,
   "picks": [
     {
@@ -130,7 +130,7 @@
       "rvol": 1.09,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 28.3,
+        "weekly_rsi": 28.2,
         "vol_dry": false,
         "near_52w_low": true,
         "weekly_score": 3
@@ -168,7 +168,7 @@
         "weekly_score": 2
       },
       "reason": "RSI 51 turning up from oversold \u00b7 volume drying",
-      "already_open": true,
+      "already_open": false,
       "vix_reduced": false,
       "sector_uptrend": true
     },
@@ -226,7 +226,7 @@
       "rvol": 1.0,
       "weekly_info": {
         "setup": "OVERSOLD_EXHAUSTION",
-        "weekly_rsi": 24.5,
+        "weekly_rsi": 24.4,
         "vol_dry": true,
         "near_52w_low": true,
         "weekly_score": 4
@@ -258,7 +258,7 @@
       "rvol": 0.56,
       "weekly_info": {
         "setup": "RSI_DIVERGENCE",
-        "weekly_rsi": 44.8,
+        "weekly_rsi": 44.7,
         "rsi_divergence": 5.9,
         "weekly_score": 3
       },
