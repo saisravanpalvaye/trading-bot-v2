@@ -1,12 +1,12 @@
 {
   "date": "2026-10-22",
-  "generated_at": "00:06 IST",
+  "generated_at": "00:19 IST",
   "market_open": true,
   "regime": "NEUTRAL",
   "regime_desc": "Mixed signals \u2014 selective trades",
-  "nifty_rsi": 48.5,
-  "nifty_adx": 36.6,
-  "vix": 14.7,
+  "nifty_rsi": 47.7,
+  "nifty_adx": 36.7,
+  "vix": 15.7,
   "vix_action": "normal",
   "floor_hit": false,
   "consec_losses": 2,
@@ -39,7 +39,7 @@
         "weekly_score": 3
       },
       "reason": "RSI divergence \u2014 price at low, RSI 49 above recent low",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     },
