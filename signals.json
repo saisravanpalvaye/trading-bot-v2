@@ -1,11 +1,11 @@
 {
-  "date": "2026-11-10",
-  "generated_at": "05:00 IST",
+  "date": "2026-11-11",
+  "generated_at": "02:27 IST",
   "market_open": true,
   "regime": "BULLISH",
   "regime_desc": "Uptrend \u2014 full position sizes",
-  "nifty_rsi": 78.6,
-  "nifty_adx": 44.9,
+  "nifty_rsi": 78.7,
+  "nifty_adx": 49.4,
   "vix": 17.4,
   "vix_action": "normal",
   "floor_hit": false,
@@ -39,7 +39,7 @@
         "weekly_score": 3
       },
       "reason": "RSI divergence \u2014 price at low, RSI 49 above recent low",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     }
