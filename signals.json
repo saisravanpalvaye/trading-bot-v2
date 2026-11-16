@@ -1,15 +1,15 @@
 {
-  "date": "2026-11-16",
-  "generated_at": "01:24 IST",
+  "date": "2026-11-17",
+  "generated_at": "04:58 IST",
   "market_open": true,
   "regime": "BULLISH",
   "regime_desc": "Uptrend \u2014 full position sizes",
-  "nifty_rsi": 75.8,
+  "nifty_rsi": 76.5,
   "nifty_adx": 59.7,
-  "vix": 15.8,
+  "vix": 15.7,
   "vix_action": "normal",
   "floor_hit": false,
-  "consec_losses": 1,
+  "consec_losses": 2,
   "size_multiplier": 1.0,
   "picks": [
     {
@@ -40,7 +40,7 @@
         "weekly_score": 3
       },
       "reason": "RSI 59 pulling back to EMA20 \u00b7 ADX structural",
-      "already_open": false,
+      "already_open": true,
       "vix_reduced": false,
       "sector_uptrend": true
     }
