@@ -54,10 +54,13 @@ jobs:
       - name: Run alert (read signals.json + send Telegram + log paper trades)
         run: python alert.py
 
+      - name: ML shadow score (log p_win per signal — no blocking yet)
+        run: python ml_signal_filter.py --shadow
+
       - name: Guard — refuse to proceed if closed-trade history changed
         run: python verify_closed_trades.py
 
-      - name: Commit signals.json and paper_trades.csv
+      - name: Commit signals.json, paper_trades.csv, and p_win shadow scores
         run: |
           git config user.name  "Trading Bot"
           git config user.email "bot@trading-bot-v2"
