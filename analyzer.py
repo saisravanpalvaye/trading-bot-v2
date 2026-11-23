@@ -397,7 +397,9 @@ def run_screener(all_data, sector_data, nifty_rsi, nifty_adx,
     weekly_detectors = [
         _weekly_trend_pullback,
         _weekly_oversold,
-        _weekly_rsi_divergence,
+        # RSI_DIVERGENCE disabled 2026-11-23: 36% WR, -Rs 39,764 across 25 trades.
+        # Re-enable only after ML filter (p_win > 0.60 gate) is validated.
+        # _weekly_rsi_divergence,
     ]
 
     picks = []

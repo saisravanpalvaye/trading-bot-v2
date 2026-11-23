@@ -314,12 +314,21 @@ def build_alert_message(signals, paper_trades_path=None):
         f"Remains free:   Rs {remains:,.0f}",
     ]
 
-    # B11: deployment limit warning
-    if total_deployed > MAX_DEPLOYED:
-        lines.append(
-            f"⚠ <b>Warning:</b> Total deployed Rs {total_deployed:,.0f} "
-            f"exceeds 60% limit (Rs {MAX_DEPLOYED:,.0f})"
-        )
+    # B11: deployment limit — BLOCK signals in Telegram, not just warn.
+    # (Previously only warned; capital gate in log_paper_trades was blocking
+    #  CSV logging but Telegram still showed all signals. Fixed 2026-11-23.)
+    gate_blocked = total_deployed > MAX_DEPLOYED
+    if gate_blocked:
+        lines += [
+            f"{'─'*32}",
+            f"⛔ <b>CAPITAL GATE: No new signals.</b>",
+            f"Total deployed Rs {total_deployed:,.0f} already at/above 60% limit "
+            f"(Rs {MAX_DEPLOYED:,.0f}).",
+            "Existing positions running. No new entries today.",
+            f"{'─'*32}",
+            "<i>Paper trading · Not SEBI advice</i>",
+        ]
+        return "\n".join(lines)
 
     # No picks
     if not picks:
