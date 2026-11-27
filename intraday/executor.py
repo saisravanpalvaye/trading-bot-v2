@@ -40,7 +40,11 @@ def _send_telegram(text: str) -> bool:
 def notify(text: str, mode: str) -> None:
     """Plain status message (e.g. 'no trades today') for scheduled runs.
     Silent in paper_replay and when Telegram isn't configured."""
-    if mode == "paper_replay" or not (TELEGRAM_TOKEN and TELEGRAM_CHAT_ID):
+    if mode == "paper_replay":
+        return
+    if not (TELEGRAM_TOKEN and TELEGRAM_CHAT_ID):
+        print("[EXECUTOR] ⚠ Telegram NOT configured — add TELEGRAM_TOKEN and "
+              "TELEGRAM_CHAT_ID to trading-bot-v2/.env")
         return
     tag = "📝 PAPER — " if PAPER_MODE else ""
     _send_telegram(f"<b>{tag}ORB</b>  {text}")

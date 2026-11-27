@@ -29,6 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 IST = timezone(timedelta(hours=5, minutes=30))
+LATE_CUTOFF_MIN = 45   # market_open refuses to run after 09:45 IST
 
 
 def now_ist() -> str:
@@ -39,12 +40,19 @@ def run_pre_market(mode: str = "pre_market"):
     """9:00 AM pipeline: SCOUT → save candidates.json"""
     import scout
     import logger
+    import executor
 
     print(f"\n{'='*60}")
     print(f"  INTRADAY ORB — PRE-MARKET  [{now_ist()}]")
     print(f"{'='*60}")
 
     candidates = scout.run(mode=mode)
+    trend_ok = sum(1 for c in candidates if c.get("trend_ok"))
+    nifty = candidates[0].get("nifty_ok") if candidates else None
+    executor.notify(
+        f"pre-market OK — {len(candidates)} scouted, {trend_ok} above 50-EMA, "
+        f"Nifty gate {'PASS' if nifty else 'FAIL — no longs today' if nifty is False else 'n/a'}. "
+        f"Signals at ~09:31.", mode)
 
     print(f"\n[BRAIN] Pre-market complete.")
     print(f"  {len(candidates)} candidates saved to candidates.json")
@@ -60,15 +68,25 @@ def run_market_open(mode: str = "market_open", stop_mode: str = "midpoint"):
     print(f"  INTRADAY ORB — MARKET OPEN  [{now_ist()}]")
     print(f"{'='*60}")
 
+    # Late-run guard: if the laptop woke up late, don't send stale signals
+    now = datetime.now(IST)
+    if now.hour > 9 or (now.hour == 9 and now.minute > LATE_CUTOFF_MIN):
+        msg = f"market_open skipped — ran late at {now:%H:%M} (cutoff 09:{LATE_CUTOFF_MIN})"
+        print(f"[BRAIN] {msg}")
+        executor.notify(f"⚠ {msg}. Laptop asleep/offline?", mode)
+        return
+
     candidates = logger.load_candidates()
     if not candidates:
         print("[BRAIN] No candidates — did pre_market run this morning?")
+        executor.notify("⚠ no candidates.json — pre_market didn't run this morning", mode)
         return
 
     # FILTER
     filtered = orb_filter.apply(candidates, mode=mode)
     if not filtered:
         print("[BRAIN] All candidates killed by FILTER — no trades today")
+        executor.notify(f"No trades today — all {len(candidates)} candidates filtered out", mode)
         logger.print_summary()
         return
 
@@ -76,11 +94,14 @@ def run_market_open(mode: str = "market_open", stop_mode: str = "midpoint"):
     ranked = analyst.run(filtered, stop_mode=stop_mode)
     if not ranked:
         print("[BRAIN] ANALYST produced no ranked signals")
+        executor.notify("No trades today — analyst produced no signals", mode)
         logger.print_summary()
         return
 
     # RISK
     approved = risk.apply(ranked, mode=mode)
+    if not approved:
+        executor.notify("No trades today — risk gates blocked all signals", mode)
 
     # EXECUTOR
     executor.run(approved, mode=mode)
