@@ -2,7 +2,7 @@
 intraday/executor.py — EXECUTOR: Obeys. Does not judge.
 
 PAPER_MODE=True  → Logs "would trade" to decisions.csv. Prints to stdout.
-                   No Telegram. No real orders.
+                   Sends a Telegram tagged 📝 PAPER (scheduled runs only). No real orders.
 PAPER_MODE=False → Sends ranked Telegram alert (top 1-2 by RelVol).
                    Phase 2: auto bracket order via Upstox API.
 
@@ -37,11 +37,21 @@ def _send_telegram(text: str) -> bool:
         return False
 
 
+def notify(text: str, mode: str) -> None:
+    """Plain status message (e.g. 'no trades today') for scheduled runs.
+    Silent in paper_replay and when Telegram isn't configured."""
+    if mode == "paper_replay" or not (TELEGRAM_TOKEN and TELEGRAM_CHAT_ID):
+        return
+    tag = "📝 PAPER — " if PAPER_MODE else ""
+    _send_telegram(f"<b>{tag}ORB</b>  {text}")
+
+
 def _format_alert(approved: list[dict]) -> str:
     """Format ranked signal list as HTML Telegram message."""
     now_ist = datetime.now(IST).strftime("%d %b %Y  %H:%M IST")
+    tag = "📝 PAPER — " if PAPER_MODE else ""
     lines = [
-        f"<b>🟢 ORB SIGNALS — {now_ist}</b>",
+        f"<b>{tag}🟢 ORB SIGNALS — {now_ist}</b>",
         f"<i>Top {len(approved)} by RelVol | Mode: LONG | 2:1 R:R | Exit: 15:20</i>",
         "",
     ]
@@ -63,7 +73,8 @@ def _format_alert(approved: list[dict]) -> str:
             f"  Gap: {s.get('gap_pct',0):.2f}%  |  OR width: {s.get('or_width_pct',0):.2f}%",
             "",
         ]
-    lines.append("⚠ Bracket order in Upstox app. Manual confirmation required.")
+    lines.append("📝 Paper trade — track it, don't place it." if PAPER_MODE
+                 else "⚠ Bracket order in Upstox app. Manual confirmation required.")
     return "\n".join(lines)
 
 
@@ -101,8 +112,11 @@ def run(approved: list[dict], mode: str = "market_open") -> None:
                   f"qty={s['qty']}  exposure=Rs{s['position_value']:,.0f}  "
                   f"RelVol={s.get('rel_vol','?'):.2f}")
         print("="*60)
-        print("  NOT sent to Telegram (PAPER_MODE=True)")
-        print("  Set PAPER_MODE=False in config.py to enable live alerts\n")
+        # Scheduled paper runs still alert (tagged PAPER) so automation is visible
+        if mode != "paper_replay" and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+            _send_telegram(_format_alert(approved[:2]))
+        else:
+            print("  Telegram not sent (replay mode or TELEGRAM_* not set in .env)\n")
         return
 
     # Live mode: send top 2 to Telegram

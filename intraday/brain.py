@@ -89,6 +89,22 @@ def run_market_open(mode: str = "market_open", stop_mode: str = "midpoint"):
     logger.print_summary()
 
 
+def _replay_session():
+    """Pick the session to replay: today if its 9:15 OR candle exists (market open
+    or closed for the day), otherwise the last completed trading day."""
+    from datetime import date
+    import upstox_api, config
+    from datetime import time as dtime
+    today = date.today()
+    df = upstox_api.candles_15m_for(config.NIFTY50_KEY, today)
+    if df is not None and (df["datetime"].dt.time == dtime(9, 15)).any():
+        return today
+    d = upstox_api.daily(config.NIFTY50_KEY, today - timedelta(days=10), today - timedelta(days=1))
+    if d is None or d.empty:
+        return None
+    return d["date"].iloc[-1]
+
+
 def run_paper_replay(stop_mode: str = "midpoint", days: int = 5):
     """
     Replay last N completed trading days through the full pipeline.
@@ -103,15 +119,22 @@ def run_paper_replay(stop_mode: str = "midpoint", days: int = 5):
     print(f"  stop_mode={stop_mode}")
     print(f"{'='*60}\n")
 
-    # SCOUT fetches recent daily data, FILTER fetches recent 15m data
-    # (falls back to yesterday's candle when today's market isn't open)
-    candidates = scout.run(mode="paper_replay")
+    session = _replay_session()
+    if session is None:
+        print("[BRAIN] Could not determine a session to replay — check token / Upstox errors above")
+        return
+    if days != 1:
+        print(f"[BRAIN] Note: multi-day replay not built yet — replaying 1 session ({session})")
+    print(f"[BRAIN] Replaying session {session}\n")
+
+    # SCOUT uses bars strictly before `session`; FILTER uses `session`'s own OR candle
+    candidates = scout.run(mode="paper_replay", as_of=session)
 
     if not candidates:
         print("[BRAIN] SCOUT returned no candidates")
         return
 
-    filtered = orb_filter.apply(candidates, mode="paper_replay")
+    filtered = orb_filter.apply(candidates, mode="paper_replay", session=session)
     if not filtered:
         print("[BRAIN] All candidates killed by FILTER")
         logger.print_summary()

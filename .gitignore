@@ -1,1 +1,5 @@
 .env
+.env
+intraday/logs/
+intraday/decisions.csv
+intraday/candidates.json

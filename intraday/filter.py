@@ -8,60 +8,26 @@ FILTER never guesses. Each kill has an exact reason string.
 After 20 days you'll know which filter does the most work.
 """
 
-import requests
 import pandas as pd
 from datetime import date, timedelta, datetime, timezone
 from config import (
-    UPSTOX_TOKEN, OR_MIN_PCT, OR_MAX_PCT,
+    OR_MIN_PCT, OR_MAX_PCT,
     GAP_MIN_PCT, GAP_MAX_PCT, USE_VOL_FILTER,
     VOL_FILTER_MIN_RATIO, TREND_FILTER, USE_NIFTY_FILTER,
 )
 import logger
+import upstox_api
 
 IST = timezone(timedelta(hours=5, minutes=30))
-BASE_URL = "https://api.upstox.com/v2/historical-candle"
 
 
-def _headers() -> dict:
-    return {
-        "Authorization": f"Bearer {UPSTOX_TOKEN}",
-        "Accept":        "application/json",
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-    }
-
-
-def _fetch_today_15m(instrument_key: str) -> pd.DataFrame | None:
+def _fetch_session_15m(instrument_key: str, session: date) -> pd.DataFrame | None:
     """
-    Fetch today's 15-min candles.
-    At 9:31 AM, this returns at minimum the 9:15 OR candle.
-
-    For paper/replay mode, fetches yesterday (last completed trading day).
+    FIX-3: 15-min candles via Upstox V3 (V2 never supported 15-minute).
+    FIX-4: candles for EXACTLY `session` — no silent fallback to yesterday.
+    If today's 9:15 candle isn't there, the stock is skipped, not traded on old data.
     """
-    today   = date.today().strftime("%Y-%m-%d")
-    yest    = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-    # Try today first, fall back to yesterday for paper replay
-    for from_dt, to_dt in [(today, today), (yest, yest)]:
-        url = f"{BASE_URL}/{instrument_key}/15minute/{to_dt}/{from_dt}"
-        try:
-            r = requests.get(url, headers=_headers(), timeout=15)
-            if r.status_code != 200:
-                continue
-            data = r.json().get("data", {}).get("candles", [])
-            if not data:
-                continue
-            df = pd.DataFrame(data, columns=["datetime","open","high","low","close","volume","oi"])
-            df["datetime"] = pd.to_datetime(df["datetime"])
-            df = df.sort_values("datetime").reset_index(drop=True)
-            df[["open","high","low","close","volume"]] = df[["open","high","low","close","volume"]].astype(float)
-            return df
-        except Exception as e:
-            print(f"[FILTER] 15m fetch error {instrument_key}: {e}")
-            continue
-    return None
+    return upstox_api.candles_15m_for(instrument_key, session)
 
 
 def _get_or_candle(df: pd.DataFrame) -> pd.Series | None:
@@ -73,7 +39,8 @@ def _get_or_candle(df: pd.DataFrame) -> pd.Series | None:
     return or_rows.iloc[0]
 
 
-def apply(candidates: list[dict], mode: str = "market_open") -> list[dict]:
+def apply(candidates: list[dict], mode: str = "market_open",
+          session: date | None = None) -> list[dict]:
     """
     Apply all filter gates to each candidate.
     Returns list of dicts that passed all gates (enriched with OR data).
@@ -81,7 +48,9 @@ def apply(candidates: list[dict], mode: str = "market_open") -> list[dict]:
     Each passing dict adds:
       or_high, or_low, or_width_pct, or_vol, rel_vol, gap_pct, day_open
     """
-    print(f"\n[FILTER] Applying gates to {len(candidates)} candidates")
+    session = session or date.today()
+    session_str = session.strftime("%Y-%m-%d")
+    print(f"\n[FILTER] Applying gates to {len(candidates)} candidates (session {session_str})")
     passed = []
 
     for c in candidates:
@@ -104,10 +73,17 @@ def apply(candidates: list[dict], mode: str = "market_open") -> list[dict]:
                        trend_ok=c.get("trend_ok"), nifty_ok=False)
             continue
 
+        # ── Stale-candidate guard: SCOUT facts must be for this session ───────
+        if c.get("as_of") and c["as_of"] != session_str:
+            reason = f"stale candidate (scouted for {c['as_of']}, session is {session_str})"
+            print(f"[FILTER] {sym:<14} SKIP — {reason}")
+            logger.log(sym, "FILTER", "SKIP", reason, mode=mode)
+            continue
+
         # ── Fetch OR candle ────────────────────────────────────────────────────
-        df_15m = _fetch_today_15m(ikey)
+        df_15m = _fetch_session_15m(ikey, session)
         if df_15m is None:
-            reason = "15m data unavailable"
+            reason = f"no 15m data for {session_str}"
             print(f"[FILTER] {sym:<14} SKIP — {reason}")
             logger.log(sym, "FILTER", "SKIP", reason, mode=mode)
             continue
@@ -185,8 +161,10 @@ def apply(candidates: list[dict], mode: str = "market_open") -> list[dict]:
             "gap_pct":       round(gap_pct * 100, 2),
         }
         passed.append(result)
+        # FIX-2: conditional inside a format spec is invalid Python → crashed here
+        rv_txt = f"{rel_vol:.2f}" if rel_vol else "N/A"
         print(f"[FILTER] {sym:<14} PASS — gap={gap_pct*100:.2f}%  "
-              f"or_width={or_width_pct*100:.2f}%  rel_vol={rel_vol:.2f if rel_vol else 'N/A'}")
+              f"or_width={or_width_pct*100:.2f}%  rel_vol={rv_txt}")
         logger.log(sym, "FILTER", "PASS", "all gates passed", mode=mode,
                    gap_pct=round(gap_pct*100,2), or_width_pct=round(or_width_pct*100,3),
                    rel_vol=round(rel_vol,2) if rel_vol else "",
